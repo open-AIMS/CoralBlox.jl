@@ -59,7 +59,7 @@ function timestep_iteration(cover_t)
     internal_growth[3] = (cover_t_1[3] / (bins[4]^3 - bins[3]^3)) * ((bins[4] + γ[3])^3 - (bins[3] + γ[3])^3)
 
     # Settlers
-    settlers = [200, 0, 0]
+    settlers = [200, 0, 0] .* rel_available_space(cover_t_1)
 
     @info "Income cover: $income_cover"
     @info "Internal growth: $internal_growth"
@@ -73,3 +73,14 @@ end
 
 
 # What to do with juveniles going to medium size class when there's no space to grow?
+
+n_timesteps = 50
+covers = zeros(3, n_timesteps)
+covers[:, 1] = init_cover
+for t in 2:n_timesteps
+    covers[:, t] = timestep_iteration(covers[:, t-1])
+end
+
+using Plots
+
+plot(collect(1:n_timesteps), [covers[1, :], covers[2, :], covers[3, :]], title="Teste", label=["small" "medium" "large"], linewidth=3)
