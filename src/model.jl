@@ -74,13 +74,23 @@ end
 
 # What to do with juveniles going to medium size class when there's no space to grow?
 
-n_timesteps = 50
-covers = zeros(3, n_timesteps)
-covers[:, 1] = init_cover
+n_timesteps = 100
+covers = zeros(4, n_timesteps)
+covers[1:3, 1] = init_cover
+covers[4, 1] = sum(covers[1:3, 1])
 for t in 2:n_timesteps
-    covers[:, t] = timestep_iteration(covers[:, t-1])
+    covers[1:3, t] = timestep_iteration(covers[1:3, t-1])
+    covers[4, t] = sum(covers[1:3, t])
 end
 
 using Plots
 
-plot(collect(1:n_timesteps), [covers[1, :], covers[2, :], covers[3, :]], title="Teste", label=["small" "medium" "large"], linewidth=3)
+plot(
+    collect(1:n_timesteps),
+    [covers[1, :], covers[2, :], covers[3, :], covers[4, :]],
+    title="Coral Cover [area] - k_area = 1000",
+    label=["small" "medium" "large" "total"],
+    linewidth=3,
+    xlabel="Timesteps",
+    ylabel="Area"
+)
