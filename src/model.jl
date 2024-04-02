@@ -4,7 +4,7 @@
 
 # Initial values
 # Available area [m²]
-k_area = 1000
+k = 1000
 
 # Fraction of k_area filled with each size class corals []
 rel_init_cover = [0.3, 0.2, 0.1]
@@ -18,10 +18,10 @@ bins = [0.0, 0.01, 0.1, 0.5]
 # Background Mortality rate [1/year]
 bm = [0.05, 0.03, 0.01]
 
-init_cover = k_area .* rel_init_cover
+init_cover = k .* rel_init_cover
 
 function rel_available_space(cover::Vector{Float64})
-    return max((1 - (sum(cover) / k_area)), 0.0)
+    return max((1 - (sum(cover) / k)), 0.0)
 end
 
 # TODO check what happens in the limit available_space = 0
