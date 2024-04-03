@@ -52,7 +52,7 @@ $$
 $$
 \begin{equation}
 \begin{split}
-\boxed{C_s^{d_i, d_f}(t) = \frac{N_s(t)}{\Delta d_s} \cdot \frac{\pi}{12} (d_f^3 - d_i^3)}
+\boxed{C_s^{d_i, d_f}(t) = \frac{N_s(t)}{\Delta d_s} \cdot \frac{\pi}{12} (d_f^3 - d_i^3)} \tag{1}
 \end{split}
 \end{equation}
 $$
