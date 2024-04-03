@@ -50,11 +50,7 @@ C_s^{d_i, d_f}(t) =& \int_{d_i}^{d_f} \Gamma_s(t;x) dx \\
 $$
 
 $$
-\begin{equation}
-\begin{split}
 \boxed{C_s^{d_i, d_f}(t) = \frac{N_s(t)}{\Delta d_s} \cdot \frac{\pi}{12} (d_f^3 - d_i^3)} \tag{1}
-\end{split}
-\end{equation}
 $$
 
 > Quick note: I am using $x$ as integration variable instead of $d$ to avoid writing $dd$ ("infinitesimal delta d").
