@@ -51,9 +51,9 @@ $$
 
 $$
 \begin{equation}
-\begin{aligned}
+\begin{split}
 \boxed{C_s^{d_i, d_f}(t) = \frac{N_s(t)}{\Delta d_s} \cdot \frac{\pi}{12} (d_f^3 - d_i^3)}
-\end{aligned}
+\end{split}
 \end{equation}
 $$
 
