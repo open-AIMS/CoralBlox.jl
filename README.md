@@ -1,44 +1,80 @@
 # Coral Cover Dynamic Toy Model
 
-This is a toy model to represent a Reef's coral cover change in time over the years. Here the corals are divided into three size classes $s = 1,2,3$ (representing small, medium and large), according to their diameter. Small corals have a diameter $d$ between $d_0 = 0$ and $d_1$; medium ones have a diameter between $d_1$ and $d_2$; and large ones have a diameter between $d_2$ and $d_3$. Within each size class, the corals are supposed to have a uniform diameter distribution. We treat each coral as a perfect circumference, so that the area $a(d)$ of a coral with diameter $d$ is given by:
+This is a toy model to represent a Reef's coral cover change in time over the years. Here the corals are divided into three size classes $s = 1,2,3$ (representing small, medium and large), according to their diameter. Small corals have a diameter $d$ between $d_1 = 0$ and $d_2$; medium ones have a diameter between $d_2$ and $d_3$; and large ones have a diameter between $d_3$ and $d_4$. Within each size class, the corals are supposed to have a uniform diameter distribution. We treat each coral as a perfect circumference, so that the area $a(d)$ of a coral with diameter $d$ is given by:
 
-$a(d) = \frac{\pi d^2}{4} \qquad\qquad\qquad\qquad (1)$
+$$
+\begin{equation}
+\begin{aligned}
+a(d) = \frac{\pi d^2}{4}
+\end{aligned}
+\end{equation}
+$$
 
-The diameter increase at each time step is represented by a parameter $D_s(t) = l_s \cdot k(t)$, where $l_s$ is called *linear extension* of the size class $s$ (the base growth in diameter for corals within size class $s$) and $k(t) = 1 - C(t)/k_{max}$ is the *k-area*, which is the fraction of the available area for corals to live at time $t$. Here, $k_max$ is the maximum possible cover and $C(t)$ is the total coral cover at time $t$.
+The diameter increase at each time step is represented by a parameter $D_s(t) = l_s \cdot k(t)$, where $l_s$ is the *linear extension* of size class $s$ (the base growth in diameter for corals within size class $s$) and $k(t) = 1 - C(t)/k_{max}$ is the *k-area*, which is the fraction of the available area for corals to live at time $t$. Here, $k_max$ is the maximum possible cover and $C(t)$ is the total coral cover at time $t$.
 
 The change in diameter at each time step causes an increase in the total coral cover and also makes a fraction of the corals within small and medium size classes to move to medium and large size classes. In the next section we will learn how to calculate the cover for the corals within each size class so we can build the cover dynamic equations.
 
 ## Coral cover  calculation
 
-Suppose there are $N_s(t) > 0$ corals within a size class $s$, at time step $t$, and that they are uniformly distributed among the diameter space, then the density of corals per diameter within that size class is given by:
+Suppose there are $N_s(t) > 0$ corals within a size class $s$, at time step $t$, and that they are uniformly distributed among the diameter space (inside that size class), then the density of corals per diameter within that size class is given by:
 
-$\lambda_s(t) = \frac{N_s(t)}{\Delta d_s} \qquad\qquad\qquad\qquad (2)$
+$$
+\begin{equation}
+\begin{aligned}
+\lambda_s(t) = \frac{N_s(t)}{\Delta d_s}
+\end{aligned}
+\end{equation}
+$$
 
-Where $\Delta d_s = d_s - d_{s-1}$ is the bin size of that size class. Note that, although the number of corals change in time, the bin sizes don't.
+Where $\Delta d_s = d_{s+1} - d_{s}$ is the bin size of that size class. Note that, although the number of corals change in time, the bin sizes don't.
 
 The distribution of area per diameter for the size class $s$, at the time step $t$, is given, then, by:
 
-$\Gamma_s(t; d) = a(d) \lambda_s(t)$
+$$
+\begin{equation}
+\begin{aligned}
+\Gamma_s(t; d) =& a(d) \lambda_s(t) \\
+=& \frac{\pi d^2}{4} \frac{N_s(t)}{\Delta d_s}
+\end{aligned}
+\end{equation}
+$$
 
-$= \frac{\pi d^2}{4} \frac{N_s(t)}{\Delta d_s} \qquad\qquad\qquad\qquad\quad (3)$
+One thing to note here is that this distribution has dimension of `Area/diameter`. The cover $C_s^{d_i, d_f}(t)$ correspondent to the corals within size class $s$ whose diameters are between $d_i$ and $d_f$, where $d_{s-1} \leq d_i \leq d_f \leq d_s$ is given by:
 
-One thing to note here is that this distribution has dimension of `Area/diameter`. The cover $C_s^{d_i, d_f}(t)$ correspondent to the corals within size class $s$ whose diameter is between $d_i$ and $d_f$, where $d_{s-1} \leq d_i \leq d_f \leq d_s$ is given by:
+$$
+\begin{aligned}
+C_s^{d_i, d_f}(t) =& \int_{d_i}^{d_f} \Gamma_s(t;x) dx \\
+=& \int_{d_i}^{d_f} \frac{\pi x^2}{4} \frac{N_s(t)}{\Delta d_s} dx \\
+=& \frac{\pi N_s(t)}{4 \Delta d_s} \int_{d_i}^{d_f} x^2dx \Rightarrow \\
+\end{aligned}
+$$
 
-$C_s^{d_i, d_f}(t) = \int_{d_i}^{d_f} \Gamma_s(t;x) dx$
-
-$= \int_{d_i}^{d_f} \frac{\pi x^2}{4} \frac{N_s(t)}{\Delta d_s} dx$
-
-$= \frac{\pi N_s(t)}{4 \Delta d_s} \int_{d_i}^{d_f} x^2dx \Rightarrow$
-
-$C_s^{d_i, d_f}(t) = \frac{N_s(t)}{\Delta d_s} \cdot \frac{\pi}{12} (d_f^3 - d_i^3) \qquad\qquad\qquad\qquad (4)$
+$$
+\begin{equation}
+\begin{aligned}
+\boxed{C_s^{d_i, d_f}(t) = \frac{N_s(t)}{\Delta d_s} \cdot \frac{\pi}{12} (d_f^3 - d_i^3)}
+\end{aligned}
+\end{equation}
+$$
 
 > Quick note: I am using $x$ as integration variable instead of $d$ to avoid writing $dd$ ("infinitesimal delta d").
 
-Since the cover $C_s(t) \equiv C_s^{d_{s-1}, d_s}$ of size class $s$ at time $t$ is known, we can use this equation with integration limits going from $d_{s-1}$ to $d_{s}$ to find an expression for $N_s(t)$:
+Since the cover $C_s(t) \equiv C_s^{d_{s}, d_{s+1}}$ of the size class $s$ at time $t$ is known, we can use this equation with integration limits $[d_{s}, d_{s+1}]$ to find an expression for $\frac{N_s(t)}{\Delta d_s}$:
 
-$C_s(t) = \frac{N_s(t)}{\Delta d_s} \cdot \frac{\pi}{12} (d_{s-1}^3 - d_{s}^3) \Rightarrow$
+$$
+\begin{aligned}
+C_s(t) = \frac{N_s(t)}{\Delta d_s} \cdot \frac{\pi}{12} (d_{s+1}^3 - d_{s}^3) \Rightarrow
+\end{aligned}
+$$
 
-$\boxed{\frac{N_s(t)}{\Delta d_s} = C_s(t) \cdot \frac{12}{\pi} \cdot \frac{1}{(d_{s}^3 - d_{s-1}^3)}} \qquad\qquad\qquad\qquad (5)$
+$$
+\begin{equation}
+\begin{aligned}
+\boxed{\frac{N_s(t)}{\Delta d_s} = C_s(t) \cdot \frac{12}{\pi} \cdot \frac{1}{(d_{s+1}^3 - d_{s}^3)}}
+\end{aligned}
+\end{equation}
+$$
+
 
 And using eq. (5) in (4) we have:
 
@@ -80,7 +116,7 @@ The dynamics is given by:
 \
 $C_2(t+1) = C_1^{d_1-D_1(t), d_1}(t) \cdot (1 - m_1) + C_2^{d_1, d_2 - D_2(t)}(t) \cdot (1 - m_2)$
 
-$= C_1(t) \cdot \frac{d_{d_1}^3 - d_{d_1-D_1(t)}^3}{d_{1}^3 - d_{0}^3} \cdot (1 - m_1) + C_2(t) \cdot \frac{d_{d_2 - D_2(t)}^3 - d_{d_1}^3}{d_{2}^3 - d_{1}^3} \cdot (1 - m_2)$
+$= C_2(t) \cdot (1 - m_2) \cdot \frac{d_{d_2 - D_2(t)}^3 - d_{d_1}^3}{d_{2}^3 - d_{1}^3} + C_1(t) \cdot (1 - m_1) \cdot \frac{d_{d_1}^3 - d_{d_1-D_1(t)}^3}{d_{1}^3 - d_{0}^3}$
 
 ### Large size class
 The corals within the large size class have all the same area and are not allowed to grow (otherwise we would have infinite growth). To get the cover correspondent to the corals that go from the medium size class to the large, multiply the number of survival corals within size class 2 that are inside the migration range by the area of a coral with maximum diameter $d_{max}$:
@@ -89,7 +125,7 @@ $N_2(t) \cdot (1- m_2) \cdot \frac{d_2 - (d_2 - D_2(t))}{\Delta d_2} \cdot \frac
 
 $= C_2(t) \cdot (1- m_2) \cdot \frac{12}{\pi} \frac{1}{(d_{2}^3 - d_{1}^3)} \Delta d_2 \cdot \frac{D_2(t)}{\Delta d_2} \cdot \frac{\pi}{4} d_{max}^2$
 
-$= C_2(t) \cdot (1- m_2) \cdot \frac{3 D_2(t) \cdot d^2_{max}}{(d_{2}^3 - d_{1}^3)} \qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad (7)$
+$= C_2(t) \cdot (1- m_2) \cdot \frac{3 D_2(t) \cdot d^2_{max}}{(d_{2}^3 - d_{1}^3)}$
 
 The dynamics is given by:
 
@@ -97,7 +133,7 @@ The dynamics is given by:
 > - $C_3(t) \cdot (1 - m_3)$ - Fraction of large cover survivals that grew
 
 \
-$C_3(t+1) = C_2(t) \cdot (1 - m_2) \cdot \frac{3 D_2(t) \cdot d^2_{max}}{(d_{2}^3 - d_{1}^3)} + C_3(t)(1 - m_3)$
+$C_3(t+1) = C_3(t) \cdot (1 - m_3) + C_2(t) \cdot (1 - m_2) \cdot \frac{3 D_2(t) \cdot d^2_{max}}{(d_{2}^3 - d_{1}^3)}$
 
 ### Putting it all together
 
@@ -105,10 +141,9 @@ The final cover dynamics equations are, then:
 
 $C_1(t+1) = \zeta(t)$
 
+$C_2(t+1) = C_2(t) \cdot (1 - m_2) \cdot \frac{d_{d_2 - D_2(t)}^3 - d_{d_1}^3}{d_{2}^3 - d_{1}^3} + C_1(t) \cdot (1 - m_1) \cdot \frac{d_{d_1}^3 - d_{d_1-D_1(t)}^3}{d_{1}^3 - d_{0}^3}$
 
-$C_2(t+1) = C_1(t) \cdot \frac{d_{d_1}^3 - d_{d_1-D_1(t)}^3}{d_{1}^3 - d_{0}^3} \cdot (1 - m_1) + C_2(t) \cdot \frac{d_{d_2 - D_2(t)}^3 - d_{d_1}^3}{d_{2}^3 - d_{1}^3} \cdot (1 - m_2)$
-
-$C_3(t+1) = C_2(t) \cdot (1 - m_2) \cdot \frac{3 D_2(t) \cdot d^2_{max}}{(d_{2}^3 - d_{1}^3)} + C_3(t)(1 - m_3)$
+$C_3(t+1) = C_3(t) \cdot (1 - m_3) + C_2(t) \cdot (1 - m_2) \cdot \frac{3 D_2(t) \cdot d^2_{max}}{(d_{2}^3 - d_{1}^3)}$
 
 A one important things to note is the, when $k(t) = 0$ (meaning that there is no available space), we have $Z(t) = 0$ and $D_s(t) = 0$ for all $s$. In other words, no settlers and no diameter growth. As a consequence, the equations above become:
 
