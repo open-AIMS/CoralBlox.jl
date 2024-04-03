@@ -28,7 +28,7 @@ $C_s^{d_i, d_f}(t) = \int_{d_i}^{d_f} \Gamma_s(t;x) dx$
 
 $= \int_{d_i}^{d_f} \frac{\pi x^2}{4} \frac{N_s(t)}{\Delta d_s} dx$
 
-$= \frac{\pi N_s(t)}{4 \Delta d_s} \int_{d_i}^{d_f} x^2dx \Rightarrow \\$
+$= \frac{\pi N_s(t)}{4 \Delta d_s} \int_{d_i}^{d_f} x^2dx \Rightarrow$
 
 $C_s^{d_i, d_f}(t) = \frac{N_s(t)}{\Delta d_s} \cdot \frac{\pi}{12} (d_f^3 - d_i^3) \qquad\qquad\qquad\qquad (4)$
 
@@ -80,7 +80,7 @@ The dynamics is given by:
 \
 $C_2(t+1) = C_1^{d_1-D_1(t), d_1}(t) \cdot (1 - m_1) + C_2^{d_1, d_2 - D_2(t)}(t) \cdot (1 - m_2)$
 
-$= C_1(t) \cdot \frac{d_{d_1}^3 - d_{d_1-D_1(t)}^3}{d_{1}^3 - d_{0}^3} \cdot (1 - m_1) + C_2(t) \cdot \frac{d_{d_2 - D_2(t)}^3 - d_{d_1}^3}{d_{2}^3 - d_{1}^3} \cdot (1 - m_2)\\$
+$= C_1(t) \cdot \frac{d_{d_1}^3 - d_{d_1-D_1(t)}^3}{d_{1}^3 - d_{0}^3} \cdot (1 - m_1) + C_2(t) \cdot \frac{d_{d_2 - D_2(t)}^3 - d_{d_1}^3}{d_{2}^3 - d_{1}^3} \cdot (1 - m_2)$
 
 ### Large size class
 The corals within the large size class have all the same area and are not allowed to grow (otherwise we would have infinite growth). To get the cover correspondent to the corals that go from the medium size class to the large, multiply the number of survival corals within size class 2 that are inside the migration range by the area of a coral with maximum diameter $d_{max}$:
