@@ -56,17 +56,17 @@ In the *mortality phase*, a fraction $m_s(t)$ of each size class $s$ is removed.
 
 In the *growth phase* the corals grow in diameter and, as a consequence, part of the cover changes to another size class, what can cause a size class cover to decrease while the total cover increases. All small corals either change to the medium size class or die in that phase.
 
-In the *settlement phase* we get a bundle $\Zeta(t) = \zeta \cdot k(t)$ of new small corals (called settlers) where $\zeta$ is a constant - although in the future this should be proportional to the number of medium and large covers.
+In the *settlement phase* we get a bundle $\zeta(t) = r \cdot k(t)$ of new small corals (called settlers) where $r$ is a constant - although in the future this should be proportional to the number of medium and large covers.
 
 Before we build the cover dynamic equations, it's important to note that the small and large size classes have a special behavior. If we add more size classes, all of them, except the smallest and largest ones, would behave exactly like the medium size we present here. Next we build each size class equation separately before putting it all together, highlighting inside the box the meaning of each term in that equation.
 
 ### Small size class
 All small size class corals either die or migrate to the next step, so the only coral remaining in that size class at the end of the iteration are the settlers. The dynamics is given by:
 
-> - $\Zeta(t)$ - Settlers cover (currently this is a constant weighted by $k$, but )
+> - $\zeta(t)$ - Settlers cover (currently this is a constant weighted by $k$, but )
 
 \
-$C_1(t+1) = \Zeta(t)$
+$C_1(t+1) = \zeta(t)$
 
 ### Medium size class
 The dynamics is given by:
@@ -98,7 +98,7 @@ $C_3(t+1) = C_2(t) \cdot (1 - m_2) \cdot \frac{3 D_2(t) \cdot d^2_{max}}{(d_{2}^
 The final cover dynamics equations are, then:
 
 $
-    C_1(t+1) = \Zeta(t)\\
+    C_1(t+1) = \zeta(t)\\
     C_2(t+1) = C_1(t) \cdot \frac{d_{d_1}^3 - d_{d_1-D_1(t)}^3}{d_{1}^3 - d_{0}^3} \cdot (1 - m_1) + C_2(t) \cdot \frac{d_{d_2 - D_2(t)}^3 - d_{d_1}^3}{d_{2}^3 - d_{1}^3} \cdot (1 - m_2) \\
     C_3(t+1) = C_2(t) \cdot (1 - m_2) \cdot \frac{3 D_2(t) \cdot d^2_{max}}{(d_{2}^3 - d_{1}^3)} + C_3(t)(1 - m_3)
 $
