@@ -3,11 +3,7 @@
 This is a toy model to represent a Reef's coral cover change in time over the years. Here the corals are divided into three size classes $s = 1,2,3$ (representing small, medium and large), according to their diameter. Small corals have a diameter $d$ between $d_1 = 0$ and $d_2$; medium ones have a diameter between $d_2$ and $d_3$; and large ones have a diameter between $d_3$ and $d_4$. Within each size class, the corals are supposed to have a uniform diameter distribution. We treat each coral as a perfect circumference, so that the area $a(d)$ of a coral with diameter $d$ is given by:
 
 $$
-\begin{equation}
-\begin{aligned}
-a(d) = \frac{\pi d^2}{4}
-\end{aligned}
-\end{equation}
+a(d) = \frac{\pi d^2}{4} \tag{1}
 $$
 
 The diameter increase at each time step is represented by a parameter $D_s(t) = l_s \cdot k(t)$, where $l_s$ is the *linear extension* of size class $s$ (the base growth in diameter for corals within size class $s$) and $k(t) = 1 - C(t)/k_{max}$ is the *k-area*, which is the fraction of the available area for corals to live at time $t$. Here, $k_max$ is the maximum possible cover and $C(t)$ is the total coral cover at time $t$.
@@ -19,11 +15,7 @@ The change in diameter at each time step causes an increase in the total coral c
 Suppose there are $N_s(t) > 0$ corals within a size class $s$, at time step $t$, and that they are uniformly distributed among the diameter space (inside that size class), then the density of corals per diameter within that size class is given by:
 
 $$
-\begin{equation}
-\begin{aligned}
-\lambda_s(t) = \frac{N_s(t)}{\Delta d_s}
-\end{aligned}
-\end{equation}
+\lambda_s(t) = \frac{N_s(t)}{\Delta d_s} \tag{2}
 $$
 
 Where $\Delta d_s = d_{s+1} - d_{s}$ is the bin size of that size class. Note that, although the number of corals change in time, the bin sizes don't.
@@ -31,12 +23,10 @@ Where $\Delta d_s = d_{s+1} - d_{s}$ is the bin size of that size class. Note th
 The distribution of area per diameter for the size class $s$, at the time step $t$, is given, then, by:
 
 $$
-\begin{equation}
-\begin{aligned}
+\begin{align*}
 \Gamma_s(t; d) =& a(d) \lambda_s(t) \\
-=& \frac{\pi d^2}{4} \frac{N_s(t)}{\Delta d_s}
-\end{aligned}
-\end{equation}
+=& \frac{\pi d^2}{4} \frac{N_s(t)}{\Delta d_s} \tag{3}
+\end{align*}
 $$
 
 One thing to note here is that this distribution has dimension of `Area/diameter`. The cover $C_s^{d_i, d_f}(t)$ correspondent to the corals within size class $s$ whose diameters are between $d_i$ and $d_f$, where $d_{s-1} \leq d_i \leq d_f \leq d_s$ is given by:
