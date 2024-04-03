@@ -4,93 +4,113 @@
 
 # Initial values
 # Available area [m²]
-k = 1000
+k_max = 1000
 
-# Fraction of k_area filled with each size class corals []
-rel_init_cover = [0.3, 0.2, 0.1]
+# Settlers
+r = k_max * 0.4
+
+# Fraction of k_max filled with each size class corals []
+rel_init_cover = [0.2, 0.2, 0.2, 0.01]
+
+# Initial coral cover
+init_cover = k_max .* rel_init_cover
 
 # Diameter size class bins [m]
-bins = [0.0, 0.01, 0.1, 0.5]
+bins = [0.0, 0.01, 0.2, 0.4, 0.5]
+n_bins = length(bins) - 1
 
 # Diameter Linear Extension [m/year]
-Δd = [0.005, 0.02, 0.01]
+# Large corals don't expand
+l = [0.005, 0.02, 0.02]
 
 # Background Mortality rate [1/year]
-bm = [0.05, 0.03, 0.01]
+bm = [0.02, 0.01, 0.01, 0.005]
 
-init_cover = k .* rel_init_cover
 
-function rel_available_space(cover::Vector{Float64})
-    return max((1 - (sum(cover) / k)), 0.0)
+"""
+Fraction of k_max available.
+"""
+function _k(cover::Vector{Float64})
+    return sum(cover) > k_max ? error("Problems") : 1 - (sum(cover) / k_max)
 end
 
-# TODO check what happens in the limit available_space = 0
-function timestep_iteration(cover_t)
-    n_bins = length(cover_t)
-    cover_t_1 = zeros(Float64, n_bins)
+"""
+- `s` : Size class
+"""
+function _bins_factor(s, di, df)
+    return (df^3 - di^3) / (bins[s+1]^3 - bins[s]^3)
+end
 
-    # First apply mortality to all size classes
-    @. cover_t_1 = cover_t - (cover_t * [0.05, 0.03, 0.01])
-    @info "Cover t+1 with mortality: $cover_t_1"
+"""
+- `cover` : timesteps X sizeclass Matrix
+- `t` : Time step of that iteration
+"""
+function timestep_iteration(cover, t)
+    cover_t::Vector{Float64} = zeros(Float64, n_bins)
+    @info "Cover before iteration $t: $(cover[t-1, :])"
+    # Available area
+    k = _k(cover[t-1, :])
 
-    γ = rel_available_space(cover_t_1) .* Δd
-    @info "Relative available space: $(rel_available_space(cover_t_1))"
-    @info "Adjusted groth rate: $γ"
+    # Settlers [area]
+    ζ = r * log(1 + k)
+    @info "k: $k"
+    # Survival rate
+    survivals = 1 .- bm
+    #cover[t, :] .= cover[t, :] .* survivals
 
-    # Cover loss to next size class
-    # loss_cover = [1, 0.01, 0] .* cover_t_1
-    loss_cover = zeros(Float64, n_bins)
-    loss_cover[1] = cover_t_1[1]
-    loss_cover[2] = ((bins[3] - (bins[3] - γ[2])^3) / (bins[3] - bins[2])) * cover_t_1[2]
-    # @. loss_cover = (((bins[2:end] - γ)^3 - bins[2:end]^3) / (bins[2:end]^3 - bins[1:end-1]^3)) * cover_t_1
-    loss_cover[3] = 0.0
+    # Increase in diameter
+    D = l .* k
 
-    # Cover income from previous size class
-    income_cover = zeros(Float64, n_bins)
-    income_cover[1] = 0.0
-    income_cover[2] = (cover_t_1[1] / (bins[2]^3 - bins[1]^3)) * ((bins[2] + γ[1])^3 - (bins[1] + γ[1])^3)
-    income_cover[3] = (cover_t_1[2] / (bins[3]^3 - bins[2]^3)) * ((bins[3] + γ[2])^3 - (bins[3])^3)
-    @info "Income factor 2: $(((bins[2] + γ[1])^3 - (bins[1] + γ[1])^3)/(bins[2]^3 - bins[1]^3))"
+    small = 1
+    medium = 2:(n_bins-1)
+    large = n_bins
 
-    # Cover internal growth
-    internal_growth = zeros(Float64, n_bins)
-    internal_growth[1] = 0
-    internal_growth[2] = (cover_t_1[2] / (bins[3]^3 - bins[2]^3)) * ((bins[3])^3 - (bins[2] + γ[2])^3)
-    internal_growth[3] = (cover_t_1[3] / (bins[4]^3 - bins[3]^3)) * ((bins[4] + γ[3])^3 - (bins[3] + γ[3])^3)
+    cover_t[small] = ζ
+    @. cover_t[medium] = cover[t-1, medium] * survivals[medium] * _bins_factor.(medium, bins[medium], (bins[medium.+1] - D[medium])) +
+                         cover[t-1, medium.-1] * survivals[medium.-1] * _bins_factor.(medium .- 1, bins[medium] - D[medium.-1], bins[medium])
+    cover_t[large] = cover[t-1, large] * survivals[large] +
+                     cover[t-1, large-1] * survivals[large-1] * 3 * D[large-1] * bins[4]^2 / (bins[large]^2 - bins[large-1]^2)
 
-    # Settlers
-    settlers = [200, 0, 0] .* rel_available_space(cover_t_1)
-
-    @info "Income cover: $income_cover"
-    @info "Internal growth: $internal_growth"
-    # @info "Loss cover: $loss_cover"
-    @info "Settlers: $settlers"
-
-    @. cover_t_1 = income_cover + internal_growth + settlers
-
-    return cover_t_1
+    @info "Cover after iteration $t: $(cover_t)"
+    return cover_t
 end
 
 
 # What to do with juveniles going to medium size class when there's no space to grow?
 
-n_timesteps = 100
-covers = zeros(4, n_timesteps)
-covers[1:3, 1] = init_cover
-covers[4, 1] = sum(covers[1:3, 1])
+n_timesteps = 50
+cover = zeros(n_timesteps, n_bins)
+total_cover = zeros(n_timesteps)
+cover[1, :] = init_cover
+total_cover[1] = sum(cover[1, :])
 for t in 2:n_timesteps
-    covers[1:3, t] = timestep_iteration(covers[1:3, t-1])
-    covers[4, t] = sum(covers[1:3, t])
+    cover[t, :] .= timestep_iteration(cover, t)
+    total_cover[t] = sum(cover[t, :])
 end
 
 using Plots
+using Colors
 
-plot(
+p_total = plot(
     collect(1:n_timesteps),
-    [covers[1, :], covers[2, :], covers[3, :], covers[4, :]],
-    title="Coral Cover [area] - k_area = 1000",
-    label=["small" "medium" "large" "total"],
+    [total_cover],
+    title="Total Coral Cover (k_area = $k_max)",
+    label="Species 1",
     linewidth=3,
     xlabel="Timesteps",
-    ylabel="Area"
+    ylabel="Area",
+    color=colorant"hsla(200, 100%, 50%, 1)"
 )
+savefig(p_total, "./figures/total_cover.png")
+
+p_size_classes = plot(
+    collect(1:n_timesteps),
+    cover,
+    title="Coral Cover by size class (k_area = $k_max)",
+    label=["Small" "Medium 1" "Medium 2" "Large"],
+    linewidth=2,
+    xlabel="Timesteps",
+    ylabel="Area",
+    color_palette=sequential_palette(200, 6)[end-4:end]
+)
+savefig(p_size_classes, "./figures/size_classes.png")

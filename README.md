@@ -4,7 +4,7 @@ This is a toy model to represent a Reef's coral cover change in time over the ye
 
 $a(d) = \frac{\pi d^2}{4} \qquad\qquad\qquad\qquad (1)$
 
-The diameter increase at each time step is represented by a parameter $D_s(t) = l_s \cdot k(t)$, where $l_s$ is called *linear extension* of the size class $s$ (the base growth in diameter for corals within size class $s$) and $k(t) = k_{max} - C(t)$ is the *k-area*, which is the available area for corals to live at time $t$. Here, $k_max$ is the maximum possible cover and $C(t)$ is the total coral cover at time $t$.
+The diameter increase at each time step is represented by a parameter $D_s(t) = l_s \cdot k(t)$, where $l_s$ is called *linear extension* of the size class $s$ (the base growth in diameter for corals within size class $s$) and $k(t) = 1 - C(t)/k_{max}$ is the *k-area*, which is the fraction of the available area for corals to live at time $t$. Here, $k_max$ is the maximum possible cover and $C(t)$ is the total coral cover at time $t$.
 
 The change in diameter at each time step causes an increase in the total coral cover and also makes a fraction of the corals within small and medium size classes to move to medium and large size classes. In the next section we will learn how to calculate the cover for the corals within each size class so we can build the cover dynamic equations.
 
@@ -122,7 +122,9 @@ That means that we won't have any new coral entering the system and also no cove
 
 ## Results
 
-[To Do]
+![Total coral cover](/figures/total_cover.png)
+
+![Coral cover by size class](/figures/size_classes.png)
 
 <!-- ![image](https://latex.codecogs.com/gif.image?\int^{\infty}_{0}) -->
 
