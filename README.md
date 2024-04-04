@@ -108,15 +108,41 @@ C_1(t+1) = \zeta(t) \tag{10.1}
 $$
 
 ### Medium size class
-The dynamics is given by:
+There are two factors that affect this size class: internal grow (growth of the corals within size class 2 that don't migrate to the large size class) and migration of the small size class after growing. The cover after the internal grow is given by:
 
-> - $C_2(t; d_2, d_3 - D_2(t)) \cdot (1 - m_2)$ - Fraction of the medium cover survivals that grew and didn't migrate to the large size class
-> - $C_1(t; d_2-D_1(t), d_2) \cdot (1 - m_1)$ - Fraction of the small cover survivals that grew and migrated to the medium size
+$$
+\lambda_2 \int_{d_2}^{d_3 - D_2(t)}  \frac{\pi \Big(x + D_2(t)\Big)^2}{4} dx
+$$
+
+Which is the base of eq. (6) but with diameter given by $x + D_2(t)$ instead of $x$, since their diameter has increased. We can do a variable change $x + D_2(t) = y$ to rewrite this equation as:
+
+$$
+\lambda_2 \int_{d_2 + D_2(t)}^{d_3}  \frac{\pi y^2}{4} dy
+$$
+
+But now is easy to see that this is the same equation that lead us to eq. (8), only with intervals $[d_2 + D_2(t), d_3]$, or, in other words, $C_2(t; d_2 + D_2(t), d_3)$.
+
+By the same logic, we can write the fraction of small cover that grew and migrated to the medium size class as:
+
+$$
+\lambda_1 \int_{d_2 - D_1(t)}^{d_2}  \frac{\pi \Big(x + D_1(t)\Big)^2}{4} dx
+$$
+
+Which, with the variable change $x + D_1(t) = z$ becomes:
+
+$$
+\lambda_1 \int_{d_2}^{d_2 + D_1(t)}  \frac{\pi z^2}{4} dz
+$$
+
+Which, again, can be written using eq. (8) as $C_1(t; d_2, d_2 + D_1(t))$. So, to summarize, we have:
+
+>- $C_2(t; d_2 + D_2(t), d_3) \cdot (1 - m_2)$ - Fraction of the medium cover survivals that grew and didn't migrate to the large size class
+>- $C_1(t; d_2, d_2 + D_1(t)) \cdot (1 - m_1)$ - Fraction of the small cover survivals that grew and migrated to the medium size
 
 $$
 \begin{align*}
-C_2(t+1) =& C_2(t; d_2, d_3 - D_2(t)) \cdot (1 - m_2) + C_1(t; d_2-D_1(t), d_2) \cdot (1 - m_1) \\
-=& C_2(t) \cdot (1 - m_2) \cdot \frac{d_{d_3 - D_2(t)}^3 - d_{d_2}^3}{d_{3}^3 - d_{2}^3} + C_1(t) \cdot (1 - m_1) \cdot \frac{d_{d_2}^3 - d_{d_2-D_1(t)}^3}{d_{2}^3 - d_{1}^3} \tag{10.2}
+C_2(t+1) =& C_2(t; d_2 + D_2(t), d_3) \cdot (1 - m_2) + C_1(t; d_2, d_2 + D_1(t)) \cdot (1 - m_1) \\
+=& C_2(t) \cdot (1 - m_2) \cdot \frac{d_3^3 - (d_2 + D_2(t))^3}{d_{3}^3 - d_{2}^3} + C_1(t) \cdot (1 - m_1) \cdot \frac{(d_2 + D_1(t))^3 - d_2^3}{d_{2}^3 - d_{1}^3} \tag{10.2}
 \end{align*}
 $$
 
@@ -133,7 +159,7 @@ $$
 
 The dynamics is given by:
 
-> - $C_3(t) \cdot (1 - m_3)$ - Fraction of large cover survivals that grew
+> - $C_3(t) \cdot (1 - m_3)$ - Fraction of large cover that survived
 > - $C_2(t) \cdot (1 - m_2) \cdot\frac{3 D_2(t) \cdot d^2_{max}}{d_{3}^3 - d_{2}^3}$ - Fraction of medium cover survivals that grew and migrated to the large size class
 
 
@@ -148,7 +174,7 @@ The final cover dynamics equations are, then:
 $$
 \begin{cases}
 C_1(t+1) = \zeta(t)\\
-C_2(t+1) = C_2(t) \cdot (1 - m_2) \cdot \frac{d_{d_3 - D_2(t)}^3 - d_{d_2}^3}{d_{3}^3 - d_{2}^3} + C_1(t) \cdot (1 - m_1) \cdot \frac{d_{d_2}^3 - d_{d_2-D_1(t)}^3}{d_{2}^3 - d_{1}^3} \\
+C_2(t+1) = C_2(t) \cdot (1 - m_2) \cdot \frac{d_3^3 - (d_2 + D_2(t))^3}{d_{3}^3 - d_{2}^3} + C_1(t) \cdot (1 - m_1) \cdot \frac{(d_2 + D_1(t))^3 - d_2^3}{d_{2}^3 - d_{1}^3} \\
 C_3(t+1) = C_3(t) \cdot (1 - m_3) + C_2(t) \cdot (1 - m_2) \cdot \frac{3 D_2(t) \cdot d^2_{max}}{d_{3}^3 - d_{2}^3} \tag{11}
 \end{cases}
 $$
@@ -167,9 +193,11 @@ That means that we won't have any new coral entering the system and also no cove
 
 ## Results
 
-![Total coral cover](/figures/total_cover.png)
+The results below are from the most recent version of this model with two species and 4 size classes. All the logic explained in this document remains the same.
 
-![Coral cover by size class](/figures/size_classes.png)
+![Total coral cover](/figures/total_all_species_cover.png)
+
+![Coral cover by size class](/figures/each_species_cover.png)
 
 <!-- ![image](https://latex.codecogs.com/gif.image?\int^{\infty}_{0}) -->
 

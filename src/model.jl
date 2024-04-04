@@ -1,4 +1,6 @@
 using YAXArrays
+using Plots
+using Colors
 
 n_species = 2
 n_bins = 4
@@ -43,10 +45,9 @@ area of the corals within that size class with diameter between `di` and `df`.
 - `di`: Initial diameter
 - `df`: Final diameter
 """
-function _diameter_factor(s, di, df)
-    @info "s = $s ; di = $di ; df = $df"
-    @info (df^3 - di^3) ./ (bins[:, s+1] .^ 3 .- bins[:, s] .^ 3)
-    return (df^3 - di^3) ./ (bins[:, s+1] .^ 3 .- bins[:, s] .^ 3)
+function _diameter_factor(s::Real, species::Real, di::Real, df::Real)
+    res = (df^3 - di^3) / (bins[species, s+1]^3 - bins[species, s]^3)
+    return res
 end
 
 """
@@ -58,7 +59,6 @@ function timestep_iteration(cover, t)
 
     # Available area
     k = _k(cover[t-1, :, :])
-    k = _k(cover[1, :, :])
 
     # Settlers [area]
     ζ = r * log(1 + k)
@@ -72,21 +72,33 @@ function timestep_iteration(cover, t)
     small = 1
     medium = collect(2:(n_bins-1))
     large = n_bins
+    species = [1 2; 1 2]
+
+    m_growth_di = bins[:, medium] .+ D[:, medium].data
+    m_growth_df = bins[:, medium.+1]# .- D[:, medium].data
+    m_growth = _diameter_factor.([medium medium]', species, m_growth_di, m_growth_df)
+
+    m_migrate_di = bins[:, medium]
+    m_migrate_df = bins[:, medium] .+ D[:, medium.-1].data
+    m_migrate = _diameter_factor.([medium .- 1 medium .- 1]', species, m_migrate_di, m_migrate_df)
+
+    l_migrate_factor = (3 .* D[:, large-1] .* bins[:, 4] .^ 2) ./ (bins[:, large] .^ 2 .- bins[:, large-1] .^ 2)
 
     cover_t[:, small] .= ζ
-    @. cover_t[:, medium] = cover[t-1, :, medium] * survivals[:, medium] * _diameter_factor.([medium medium], bins[:, medium]', (bins[:, medium.+1] - D[:, medium])') +
-                            cover[t-1, :, medium.-1] * survivals[:, medium.-1] * _diameter_factor.(medium .- 1, bins[:, medium] - D[:, medium.-1], bins[:, medium])
+    @. cover_t[:, medium] = cover[t-1, :, medium] * survivals[:, medium] * m_growth +
+                            cover[t-1, :, medium.-1] * survivals[:, medium.-1] * m_migrate
     @. cover_t[:, large] = cover[t-1, :, large] * survivals[:, large] +
-                           cover[t-1, :, large-1] * survivals[:, large-1] .* (3 .* D[:, large-1] .* bins[:, 4]^2) ./ (bins[:, large]^2 .- bins[:, large-1]^2)
+                           cover[t-1, :, large-1] * survivals[:, large-1] .* l_migrate_factor
 
-    @info "Cover after iteration $t: $(cover_t)"
+    @info "Cover after iteration $t-1: $(cover[t-1,:,:])"
+    @info "K-area $k"
     return cover_t
 end
 
 
 # What to do with juveniles going to medium size class when there's no space to grow?
 
-n_timesteps = 50
+n_timesteps = 100
 cover = zeros(n_timesteps, n_species, n_bins)
 total_cover = zeros(n_timesteps, n_species)
 cover[1, :, :] = init_cover
@@ -96,29 +108,40 @@ for t in 2:n_timesteps
     total_cover[t, :] = sum(cover[t, :, :], dims=2)
 end
 
-using Plots
-using Colors
-
 p_total = plot(
     collect(1:n_timesteps),
-    [total_cover],
+    [sum(total_cover[1:end, :], dims=2)],
     title="Total Coral Cover (k_area = $k_max)",
     label="Species 1",
     linewidth=3,
     xlabel="Timesteps",
     ylabel="Area",
-    color=colorant"hsla(200, 100%, 50%, 1)"
+    color=colorant"hsla(200, 100%, 50%, 1)",
+    size=(500, 300)
 )
-savefig(p_total, "./figures/total_cover.png")
+savefig(p_total, "./figures/total_all_species_cover.png")
 
-p_size_classes = plot(
+p_size_classes1 = plot(
     collect(1:n_timesteps),
-    cover,
-    title="Coral Cover by size class (k_area = $k_max)",
+    cover[1:end, 1, :],
+    title="Species 1",
+    label=["Small " "Medium 1" "Medium 2" "Large"],
+    linewidth=2,
+    xlabel="",
+    ylabel="Area",
+    color_palette=sequential_palette(200, 6)[end-4:end]
+)
+
+p_size_classes2 = plot(
+    collect(1:n_timesteps),
+    cover[:, 2, :],
+    title="Species 2",
     label=["Small" "Medium 1" "Medium 2" "Large"],
     linewidth=2,
     xlabel="Timesteps",
     ylabel="Area",
-    color_palette=sequential_palette(200, 6)[end-4:end]
+    color_palette=sequential_palette(300, 6)[end-4:end]
 )
-savefig(p_size_classes, "./figures/size_classes.png")
+
+p_each_species = plot(p_size_classes1, p_size_classes2, layout=(2, 1), size=(500, 600))
+savefig(p_each_species, "./figures/each_species_cover.png")
