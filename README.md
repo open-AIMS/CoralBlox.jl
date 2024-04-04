@@ -198,7 +198,3 @@ The results below are from the most recent version of this model with two specie
 ![Total coral cover](/figures/total_all_species_cover.png)
 
 ![Coral cover by size class](/figures/each_species_cover.png)
-
-<!-- ![image](https://latex.codecogs.com/gif.image?\int^{\infty}_{0}) -->
-
-<!-- ![image](https://github.com/Zapiano/Coral-Cover-Dynamic-Toy-Model/assets/8040719/6e2601ea-e574-443a-95e4-5d79efc72b36) -->
