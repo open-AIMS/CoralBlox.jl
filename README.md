@@ -1,3 +1,14 @@
+# Quick Start
+
+The following is for running the model for 75 timesteps.
+
+```
+using Infiltrator, Revise
+import DynamicCoralCoverModel: blocks_model
+
+cover = blocks_model.run_model(75)
+```
+
 # Coral Cover Dynamic Toy Model
 
 > WARNING! This model was changed a little bit and this README wasn't updated yet. The big idea is still the same but there are some small details that I need to check/update.
