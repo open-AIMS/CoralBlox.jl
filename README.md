@@ -1,5 +1,7 @@
 # Coral Cover Dynamic Toy Model
 
+> WARNING! This model was changed a little bit and this README wasn't updated yet. The big idea is still the same but there are some small details that I need to check/update.
+
 This is a toy model to represent a Reef's coral cover change in time over the years. Here the corals are divided into three size classes $s = 1,2,3$ (representing small, medium and large), according to their diameter. Small corals have a diameter $d$ between $d_1 = 0$ and $d_2$; medium ones have a diameter between $d_2$ and $d_3$; and large ones have a diameter between $d_3$ and $d_4$. Within each size class, the corals are supposed to have a uniform diameter distribution. We treat each coral as a perfect circumference, so that the area $a(d)$ of a coral with diameter $d$ is given by:
 
 $$
@@ -195,6 +197,6 @@ That means that we won't have any new coral entering the system and also no cove
 
 The results below are from the most recent version of this model with two species and 4 size classes. All the logic explained in this document remains the same.
 
-![Total coral cover](/figures/total_all_species_cover.png)
+![Total coral cover](/figures/cover_species_sizeclasses.png)
 
-![Coral cover by size class](/figures/each_species_cover.png)
+![Coral cover by size class](/figures/cover_species_tot.png)
