@@ -3,7 +3,6 @@
 The following is for running the model for 75 timesteps.
 
 ```
-using Infiltrator, Revise
 import DynamicCoralCoverModel: blocks_model
 
 cover = blocks_model.run_model(75)
@@ -11,18 +10,20 @@ cover = blocks_model.run_model(75)
 
 # Coral Cover Dynamic Toy Model
 
-> WARNING! This model was changed a little bit and this README wasn't updated yet. The big idea is still the same but there are some small details that I need to check/update.
-
-This is a toy model to represent a Reef's coral cover change in time over the years. Here the corals are divided into three size classes $s = 1,2,3$ (representing small, medium and large), according to their diameter. Small corals have a diameter $d$ between $d_1 = 0$ and $d_2$; medium ones have a diameter between $d_2$ and $d_3$; and large ones have a diameter between $d_3$ and $d_4$. Within each size class, the corals are supposed to have a uniform diameter distribution. We treat each coral as a perfect circumference, so that the area $a(d)$ of a coral with diameter $d$ is given by:
+This model to represents a Reef's coral cover change in time over the years. It allows for the representation of distinct functional groups, indexed $f=1,2,...$. A single coral's area is approximated by the area of a circumference with diameter $x$:
 
 $$
-a(d) = \frac{\pi d^2}{4} \tag{1}
+a(x) = \frac{\pi x^2}{4} \tag{1}
 $$
 
-The diameter increase at each time step is given by
+Hence, when we talk about the size of a coral it means its diameter. The sum of the area of all individual corals within a particular functional group corresponds to that functional group's coral cover.
+
+At each time step, a fraction of the corals die and the survivals grow, and we have a batch of new corals (settlers) due to reproduction. The background mortality and growth rates depend on the size of the corals and functional group. To represent this difference, we split the space of possible diameters for each functional group $f$ into $s$ subspaces $\sigma_{f,1},...,\sigma_{f,s}$ so all corals with diameter within the same subspace have the same ecological behavior. A subspace $\sigma_{f,s}$ is an interval (in the diameter space) constrained by a lower bound $\sigma_{f,s}^-$ and a upper bound $\sigma_{f,s}^+$ or, in other words, $\sigma_{f,s} = [\sigma_{f,s}^-, \sigma_{f,s}^+]$. As a consequence, $\sigma_{f,s}^+ = \sigma_{f,s+1}^-$.
+
+For each functional group and diameter subspace we have a base value for the increment in the diameter size, called *linear extension* and represented by $l_{f,s}$. The increase in diameter for a single coral, at each time step, is given by
 
 $$
-D_s(t) = k(t) \cdot l_s \tag{2}
+D_{f,s}(t) = k(t) \cdot l_{f,s} \tag{2}
 $$
 
 where
@@ -31,56 +32,58 @@ $$
 k(t) = 1 - C(t)/k_{max} \tag{3}
 $$
 
-is called *k-area*, and corresponds to the fraction of the available area for corals to live at time $t$; and $l_s$ is the *linear extension* of size class $s$ (the base growth in diameter for corals within size class $s$). In eq. (3), $k_{max}$ is the maximum possible cover and $C(t)$ is the total coral cover at time $t$.
+is the available space at time $t$. $k_{max}$ is the carrying capacity and $C(t)$ is the total coral cover at time $t$ considering all functional groups and diameters subspaces.
 
-The change in diameter at each time step causes an increase in the total coral cover and also makes a fraction of the corals within small and medium size classes to move to medium and large size classes. In the next section we will learn how to calculate the cover for the corals within each size class so we can build the cover dynamic equations.
+In the next section we will learn how to calculate the cover for the corals within each diameter subspace so we can build the dynamic equations.
 
 ## Coral cover  calculation
 
-Suppose there are $N_s(t) > 0$ corals within a size class $s$, at time step $t$, and that they are uniformly distributed among the diameter space (inside that size class), then the density of corals per diameter within that size class is given by:
+Suppose there are $N_{f,s}(t) > 0$ corals of functional group $f$ within some diameter subspace $s$, at time step $t$, and that they are uniformly distributed along that subspace. The coral density per diameter is given by:
 
 $$
-\lambda_s(t) = \frac{N_s(t)}{\Delta d_s} \tag{4}
+\lambda_{f,s}(t) = \frac{N_{f,s}(t)}{\Delta \sigma_{f,s}} \tag{4}
 $$
 
-Where $\Delta d_s = d_{s+1} - d_{s}$ is the bin size of that size class. Note that, although the number of corals change in time, the bin sizes don't.
+Where $\Delta \sigma_{f,s} = \Delta \sigma_{f,s}^+ - \Delta \sigma_{f,s}^-$ is the bin size of the diameter subspace $\sigma_{f,s}$.
 
-The distribution of area per diameter for the size class $s$, at the time step $t$, is given, then, by:
+The distribution of area per diameter for the functional group $f$ and subspace $s$, at the time step $t$, is given, by:
 
 $$
 \begin{align*}
-\Gamma_s(t; d) =& a(d) \lambda_s(t) \\
-=& \frac{\pi d^2}{4} \frac{N_s(t)}{\Delta d_s} \tag{5}
+\Gamma_{f,s}(t; x) =& a(x) \lambda_{f,s}(t) \\
+=& \frac{\pi x^2}{4} \frac{N_{f,s}(t)}{\Delta \sigma_{f,s}} \tag{5}
 \end{align*}
 $$
 
-One thing to note here is that this distribution has dimension of `Area/diameter`. The cover $C_s^{d_i, d_f}(t)$ correspondent to the corals within size class $s$ whose diameters are between $d_i$ and $d_f$, where $d_{s-1} \leq d_i \leq d_f \leq d_s$ is given by:
+One thing to note here is that this distribution has dimension of `Area/diameter`[^1].
+
+[^1]: Since the area and diameter can be measured in `m^2`/`m`, `cm^2`/`cm`, etc, the actual dimension here should be based on whatever units you use to measure those. But I decided to leave it this way to emphasize that `Area` is measured in the "physical" space, whereas `diameter` is measured in the diameter space.
+
+The cover $C_{f,s}(t;a,b)$ correspondent to the corals from the functional group $f$ within the interval $[a, b]$, where $[a,b] \subset \sigma_{f,s}$ is given by:
 
 $$
 \begin{aligned}
-C_s(t; d_i, d_f) =& \int_{d_i}^{d_f} \Gamma_s(t;x) dx \\
-=& \int_{d_i}^{d_f} \frac{\pi x^2}{4} \frac{N_s(t)}{\Delta d_s} dx \\
-=& \frac{\pi N_s(t)}{4 \Delta d_s} \int_{d_i}^{d_f} x^2dx \Rightarrow \\
+C_{f,s}(t; a,b) =& \int_{a}^{b} \Gamma_{f,s}(t; x) dx \\
+=& \int_{a}^{b} \frac{\pi x^2}{4} \lambda_{f,s}(t) dx \\
+=& \lambda_{f,s}(t)\frac{\pi }{4} \int_{a}^{b} x^2dx \Rightarrow \\
 \end{aligned}
 $$
 
 $$
-\boxed{C_s(t; d_i, d_f) = \frac{N_s(t)}{\Delta d_s} \cdot \frac{\pi}{12} (d_f^3 - d_i^3)} \tag{6}
+\boxed{C_{f,s}(t; a,b) = \lambda_{f,s}(t) \frac{\pi}{12} (b^3 - a^3)} \tag{6}
 $$
 
-> Quick note: I am using $x$ as integration variable instead of $d$ to avoid writing $dd$ ("infinitesimal delta d").
-
-Since the cover $C_s(t) \equiv C_s(t; d_{s}, d_{s+1})$ of the size class $s$ at time $t$ is known, we can use this eq. (6) with integration limits $[d_{s}, d_{s+1}]$ to find an expression for $\frac{N_s(t)}{\Delta d_s}$:
+Since the cover $C_{f,s}(0) \equiv C_{f,s}(0; \sigma_{f,s}^-, \sigma_{f,s}^+)$ of all corals from functional group $f$ with diameter within the diameter subspace $s$ at time $0$ is known, we can use eq. (6) to find an expression for the initial densities $\lambda_{f,s}(0)$:
 
 $$
-C_s(t) = \frac{N_s(t)}{\Delta d_s} \cdot \frac{\pi}{12} (d_{s+1}^3 - d_{s}^3) \Rightarrow
+C_{f,s}(0) = \lambda_{f,s}(0) \cdot \frac{\pi}{12} \left[(\sigma_{f,s}^+)^3 - (\sigma_{f,s}^-)^3\right] \Rightarrow
 $$
 
 $$
-\boxed{\frac{N_s(t)}{\Delta d_s} = C_s(t) \cdot \frac{12}{\pi} \cdot \frac{1}{(d_{s+1}^3 - d_{s}^3)}} \tag{7}
+\boxed{\lambda_{f,s}(0) = C_{f,s}(0) \cdot \frac{12}{\pi} \cdot \frac{1}{(\sigma_{f,s}^+)^3 - (\sigma_{f,s}^-)^3}} \tag{7}
 $$
 
-
+<!--
 And using eq. (5) in (4) we have:
 
 $$
@@ -92,6 +95,9 @@ $$
 $$
 
 Eq. (8) gives cover correspondent to the corals with diameter between $d_i$ and $d_f$. Note that, when $d_i = d_{s}$ and $d_f = d_{s+1}$, we have $C_s(t; d_{s}, d_{s+1}) = C_s(t)$ as expected; and when $d_i = d_f$ the cover goes to zero. Next we are going to use this equation to find the change in cover for each size class at each time step due to growth and size class changing.
+-->
+
+> **_NOTE:_** This documentation from this point up to the end still need to be updated. Don't trust anything you read from now on.
 
 ## The Dynamics
 
