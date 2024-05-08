@@ -40,8 +40,6 @@ function SizeClass(
     return SizeClass(cover_blocks, size_class.interval, size_class.size_class, size_class.linear_extension, size_class.survival_rate)
 end
 
-include("plot_inspec.jl")
-
 """ Area factor for a corals with diameter between bin_i and bin_f """
 area_factor(bin_i, bin_f) = (π / 12) * (bin_f^3 - bin_i^3)
 
@@ -113,7 +111,12 @@ end
 
 """ Fraction of k_max available """
 function _k_area(cover::Array{Float64}, k_max::Float64)::Float64
-    sum(cover) > k_max ? error("k-area should not be greater than k_max") : nothing
+    sum_cov::Float64 = sum(cover)
+    # sum_cov > k_max ? error("k-area should not be greater than k_max. k-area: $(sum_cov), k-max: $(k_max)") : nothing
+    if sum_cov > k_max
+        @warn "k-area should not be greater than k_max. k-area: $(sum_cov), k-max: $(k_max)"
+        return 0.0
+    end
     return 1 - (sum(cover) / k_max)
 end
 
@@ -214,11 +217,9 @@ function timestep_iteration(
     size_classes::Matrix{SizeClass},
     coral_spec::CoralSpec,
 )
-    plot_size_class(size_classes, t - 1, coral_spec)
     k_area::Float64 = _k_area(cover[t-1, :, :], coral_spec.k_max)
 
     coral_prop = dropdims(sum(cover[t-1, :, :], dims=2), dims=2) ./ dropdims(sum(cover[t-1, :, :], dims=(1, 2)), dims=(1, 2))
-    println(coral_prop)
     #_virtual_cover = virtual_cover(size_classes, coral_spec)
     settlers_cover::Vector{Float64} = coral_spec.settler_fracs .* coral_spec.k_max .* log(1 + k_area) .* coral_prop
 
@@ -234,6 +235,66 @@ function timestep_iteration(
     # Create new_size_classes
     # Small -> settlers
     small_cover_blocks = CoverBlock.(settlers_cover, interval_lower_bound.(size_classes[:, 1]), interval_upper_bound.(size_classes[:, 1]))
+    small_size_classes = SizeClass.(
+        small_cover_blocks,
+        fill(small, n_species),
+        linear_extension.(size_classes[:, 1]),
+        survival_rate.(size_classes[:, 1])
+    )
+
+    medium_size_classes = new_medium_size_class.(
+        size_classes[:, medium.-1],
+        size_classes[:, medium],
+        growth[:, medium.-1],
+        growth[:, medium]
+    )
+
+    large_size_classes = new_large_size_class.(
+        size_classes[:, large-1],
+        size_classes[:, large],
+        growth[:, large-1],
+    )
+
+    size_classes[:, small] = small_size_classes
+    size_classes[:, medium] = medium_size_classes
+    size_classes[:, large] = large_size_classes
+    return size_class_cover.(size_classes)
+
+    #@info "Cover after iteration $t-1: $(cover[t-1,:,:])"
+    #@info "K-area $k"
+end
+
+function apply_changes!(size_class::Matrix{SizeClass}, reduction_density::AbstractArray{<:Real, 2})
+    n_taxa, n_groups = size(size_class)
+    for i in 1:n_taxa
+        for j in 1:n_groups
+            for cv in size_class[i, j].cover_blocks
+                cv.diameter_density .* reduction_density[i, j]
+            end
+        end
+    end
+    return nothing
+end
+
+function timestep(
+    cover::Array{Float64},
+    size_classes::Matrix{SizeClass},
+    max_available::Float64
+)
+    k_area::Float64 = _k_area(cover, max_available)
+
+    # Actual coral diameter growth [m/year]
+    growth::Matrix{Float64} = linear_extension.(size_classes) .* log(1 + k_area)#k_area
+
+    n_species, n_bins = size(cover)
+
+    small = 1
+    medium = collect(2:(n_bins-1))
+    large = n_bins
+
+    # Create new_size_classes
+    # Small -> settlers
+    small_cover_blocks = CoverBlock.(cover[:, 1], interval_lower_bound.(size_classes[:, 1]), interval_upper_bound.(size_classes[:, 1]))
     small_size_classes = SizeClass.(
         small_cover_blocks,
         fill(small, n_species),
