@@ -1,7 +1,6 @@
 module blocks_model
 
 include("coral_spec.jl")
-
 # TODO Use only Tuples? Maybe have an intermediate struct called CoralBlock or smth?
 struct CoverBlock
     diameter_density::Float64       # Number of corals / m
@@ -215,10 +214,13 @@ function timestep_iteration(
     size_classes::Matrix{SizeClass},
     coral_spec::CoralSpec,
 )
-    #plot_size_class(size_classes, t - 1, coral_spec)
+    plot_size_class(size_classes, t - 1, coral_spec)
     k_area::Float64 = _k_area(cover[t-1, :, :], coral_spec.k_max)
+
+    coral_prop = dropdims(sum(cover[t-1, :, :], dims=2), dims=2) ./ dropdims(sum(cover[t-1, :, :], dims=(1, 2)), dims=(1, 2))
+    println(coral_prop)
     #_virtual_cover = virtual_cover(size_classes, coral_spec)
-    settlers_cover::Vector{Float64} = coral_spec.settler_fracs .* coral_spec.k_max .* log(1 + k_area)
+    settlers_cover::Vector{Float64} = coral_spec.settler_fracs .* coral_spec.k_max .* log(1 + k_area) .* coral_prop
 
     # Actual coral diameter growth [m/year]
     growth::Matrix{Float64} = linear_extension.(size_classes) .* log(1 + k_area)#k_area
