@@ -1,5 +1,7 @@
 module blocks_model
 
+import ..DynamicCoralCoverModel.Plot: plot_size_class
+
 include("coral_spec.jl")
 # TODO Use only Tuples? Maybe have an intermediate struct called CoralBlock or smth?
 mutable struct CoverBlock
@@ -68,8 +70,6 @@ end
 function cover_block_cover(cover_block::CoverBlock)::Float64
     return cover_block.diameter_density * area_factor(cover_block.interval...)
 end
-
-include("plot_inspec.jl")
 
 """
 Fraction of k_max filled with each size class corals at time t
@@ -273,12 +273,12 @@ function apply_changes!(size_class::Matrix{SizeClass}, reduction_density::SubArr
     for i in axes(size_class, 1), j in axes(size_class, 2)
         apply_changes!.(size_class[i, j].cover_blocks, reduction_density[i, j])
     end
- 
+
     return nothing
 end
 function apply_changes!(cover_block::CoverBlock, reduction_density::Union{Float32,Float64})::Nothing
     cover_block.diameter_density *= reduction_density
- 
+
     return nothing
 end
 
@@ -290,7 +290,10 @@ function timestep(
     plot::Bool=false
 )
     if plot
-        plot_size_class(size_classes, timestep)
+        try
+            plot_size_class(size_classes, timestep)
+        catch
+        end
     end
     k_area::Float64 = _k_area(cover, max_available)
 
