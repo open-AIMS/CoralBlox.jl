@@ -69,8 +69,6 @@ function cover_block_cover(cover_block::CoverBlock)::Float64
     return cover_block.diameter_density * area_factor(cover_block.interval...)
 end
 
-include("plot_inspec.jl")
-
 """
 Fraction of k_max filled with each size class corals at time t
 """
