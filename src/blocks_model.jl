@@ -273,12 +273,12 @@ function apply_changes!(size_class::Matrix{SizeClass}, reduction_density::SubArr
     for i in axes(size_class, 1), j in axes(size_class, 2)
         apply_changes!.(size_class[i, j].cover_blocks, reduction_density[i, j])
     end
- 
+
     return nothing
 end
 function apply_changes!(cover_block::CoverBlock, reduction_density::Union{Float32,Float64})::Nothing
     cover_block.diameter_density *= reduction_density
- 
+
     return nothing
 end
 
