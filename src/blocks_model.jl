@@ -69,6 +69,8 @@ function cover_block_cover(cover_block::CoverBlock)::Float64
     return cover_block.diameter_density * area_factor(cover_block.interval...)
 end
 
+include("plot_inspec.jl")
+
 """
 Fraction of k_max filled with each size class corals at time t
 """
@@ -96,6 +98,9 @@ function run_model(n_timesteps=100)
         coral_spec.linear_extension,
         coral_spec.survival_rate
     )
+
+    ch = zeros(6, 7)
+    apply_changes!(size_classes, @view ch[2:end, :])
 
     for t in 2:n_timesteps
         cover[t, :, :] .= timestep_iteration(
@@ -217,6 +222,7 @@ function timestep_iteration(
     size_classes::Matrix{SizeClass},
     coral_spec::CoralSpec,
 )
+    plot_size_class(size_classes, t)
     k_area::Float64 = _k_area(cover[t-1, :, :], coral_spec.k_max)
 
     coral_prop = dropdims(sum(cover[t-1, :, :], dims=2), dims=2) ./ dropdims(sum(cover[t-1, :, :], dims=(1, 2)), dims=(1, 2))
@@ -263,24 +269,29 @@ function timestep_iteration(
     #@info "Cover after iteration $t-1: $(cover[t-1,:,:])"
     #@info "K-area $k"
 end
-
-function apply_changes!(size_class::Matrix{SizeClass}, reduction_density::AbstractArray{<:Real, 2})
-    n_taxa, n_groups = size(size_class)
-    for i in 1:n_taxa
-        for j in 1:n_groups
-            for cv in size_class[i, j].cover_blocks
-                cv.diameter_density * reduction_density[i, j]
-            end
-        end
+function apply_changes!(size_class::Matrix{SizeClass}, reduction_density::SubArray{<:Union{Float32, Float64},2})::Nothing
+    for i in axes(size_class, 1), j in axes(size_class, 2)
+        apply_changes!.(size_class[i, j].cover_blocks, reduction_density[i, j])
     end
+ 
+    return nothing
+end
+function apply_changes!(cover_block::CoverBlock, reduction_density::Union{Float32,Float64})::Nothing
+    cover_block.diameter_density *= reduction_density
+ 
     return nothing
 end
 
 function timestep(
     cover::Array{Float64},
     size_classes::Matrix{SizeClass},
-    max_available::Float64
+    max_available::Float64,
+    timestep::Int,
+    plot::Bool=false
 )
+    if plot
+        plot_size_class(size_classes, timestep)
+    end
     k_area::Float64 = _k_area(cover, max_available)
 
     # Actual coral diameter growth [m/year]

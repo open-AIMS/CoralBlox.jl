@@ -1,33 +1,30 @@
-using Plots, Colors
+using Makie, Makie.GeometryBasics, CairoMakie
 
 function rectangle(w, h, x, y)
-    return Shape(x .+ [0, w, w, 0], y .+ [0, 0, h, h])
+    return x .+ [0, w, w, 0], y .+ [0, 0, h, h]
 end
 
-function rectangles!(sc, color, size_class)
-    legend = true
+function rectangles!(sc, ind)
     for cv in sc.cover_blocks
         width = Δinterval(cv.interval)
         height = cv.diameter_density * (Δinterval(cv.interval))
-        plot!(rectangle(width, log(10, height), interval_lower_bound(cv), 0.0), color=color, linealpha=0.0, legend=false)
-        legend = false
+        poly!(Rect(interval_lower_bound(cv), 0.0, width, log(10, height)), color=ind, strokewidth=0.0, colormap=:PuBuGn_6, colorrange=(1, 6))
     end
 end
 
 """
 This function will plot one figure for each timestep
 """
-function plot_size_class(size_classes::Matrix{SizeClass}, timestep::Int64, coral_spec)
-    n_species = length(coral_spec.f_groups)
-    n_bins = size(coral_spec.bins)[2] - 1
-    plots = Array{Plots.Plot}(undef, n_species)
+function plot_size_class(size_classes::Matrix{SizeClass}, timestep::Int64)
+    f = Figure(; size=(1600, 1600))
+    n_species, n_bins = size(size_classes)
+    x = [1, 1, 2, 2, 3, 3]
+    y = [1, 2, 1, 2, 1, 2]
     for species in 1:n_species
-        colors = sequential_palette(species * 360 / n_species, n_bins + 1)[2:end]
-        plots[species] = plot(title=coral_spec.f_groups[species], ylims=(1, 1e1), legend=false)
-        n_corals::Float64 = 0.0
+        Axis(f[x[species], y[species]], title="spec: $(species), timestep = $timestep")
 
         for (size, sc) in enumerate(size_classes[species, 2:end])
-            rectangles!(sc, colors[size], size)
+            rectangles!(sc, size)
             # _x = vcat([[cv.interval[1], cv.interval[2]] for cv in sc.cover_blocks]...)
             # _y = vcat([fill(cv.diameter_density * (Δinterval(cv.interval)), 2) for cv in sc.cover_blocks]...)
             # n_corals += sum(_y) / 2
@@ -48,12 +45,9 @@ function plot_size_class(size_classes::Matrix{SizeClass}, timestep::Int64, coral
         #     yscale=:log10,
         #     line=(2, :solid, :black)
         # )
-        xlabel!("Diameter (m)")
-        ylabel!("Number of Corals per Size Class")
     end
 
-    p = plot(plots..., layout=(3, 2), size=(1200, 1200), plot_title="timestep = $timestep")
-    savefig(p, "./figures/gif/t$(timestep).png")
+    save("./figures/gif/t$(timestep).png", f)
     return nothing
 end
 
