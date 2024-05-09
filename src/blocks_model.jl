@@ -2,7 +2,7 @@ module blocks_model
 
 include("coral_spec.jl")
 # TODO Use only Tuples? Maybe have an intermediate struct called CoralBlock or smth?
-struct CoverBlock
+mutable struct CoverBlock
     diameter_density::Float64       # Number of corals / m
     interval::NTuple{2,Float64}
 end
@@ -269,7 +269,7 @@ function apply_changes!(size_class::Matrix{SizeClass}, reduction_density::Abstra
     for i in 1:n_taxa
         for j in 1:n_groups
             for cv in size_class[i, j].cover_blocks
-                cv.diameter_density .* reduction_density[i, j]
+                cv.diameter_density * reduction_density[i, j]
             end
         end
     end
