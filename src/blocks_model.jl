@@ -289,8 +289,7 @@ function timestep(
 )
     if plot
         ext = Base.get_extension(parentmodule(blocks_model), :DynamicCoralPlotExt)
-        if isnothing(ext)
-        else
+        if !isnothing(ext)
             parentmodule(blocks_model).Plot.plot_size_class(size_classes, timestep)
         end
     end
