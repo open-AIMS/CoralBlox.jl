@@ -3,6 +3,8 @@ module DynamicCoralPlotExt
 using DynamicCoralCoverModel
 import DynamicCoralCoverModel.blocks_model: CoverBlock
 import DynamicCoralCoverModel.blocks_model: SizeClass
+import DynamicCoralCoverModel.blocks_model: Δinterval
+import DynamicCoralCoverModel.blocks_model: interval_lower_bound
 
 using Makie, Makie.GeometryBasics
 
