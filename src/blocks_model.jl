@@ -1,7 +1,5 @@
 module blocks_model
 
-import ..DynamicCoralCoverModel.Plot: plot_size_class
-
 include("coral_spec.jl")
 # TODO Use only Tuples? Maybe have an intermediate struct called CoralBlock or smth?
 mutable struct CoverBlock
@@ -290,9 +288,9 @@ function timestep(
     plot::Bool=false
 )
     if plot
-        try
-            plot_size_class(size_classes, timestep)
-        catch
+        ext = Base.get_extension(parentmodule(blocks_model), :DynamicCoralPlotExt)
+        if !isnothing(ext)
+            parentmodule(blocks_model).Plot.plot_size_class(size_classes, timestep)
         end
     end
     k_area::Float64 = _k_area(cover, max_available)
