@@ -116,10 +116,16 @@ end
 function _k_area(cover::Array{Float64}, k_max::Float64)::Float64
     sum_cov::Float64 = sum(cover)
     # sum_cov > k_max ? error("k-area should not be greater than k_max. k-area: $(sum_cov), k-max: $(k_max)") : nothing
-    if sum_cov > k_max
+
+    # Consider values close to 0.0 (e.g., 1e-214) as being 0.0
+    # https://github.com/JuliaLang/julia/issues/23376#issuecomment-324649815
+    if ((sum_cov - k_max) + 1.0) ≈ 1.0
+        return 0.0
+    elseif (sum_cov - k_max) > 0.0
         @warn "k-area should not be greater than k_max. k-area: $(sum_cov), k-max: $(k_max)"
         return 0.0
     end
+
     return 1 - (sum(cover) / k_max)
 end
 
@@ -271,7 +277,6 @@ function apply_changes!(size_class::Matrix{SizeClass}, reduction_density::SubArr
     for i in axes(size_class, 1), j in axes(size_class, 2)
         apply_changes!.(size_class[i, j].cover_blocks, reduction_density[i, j])
     end
-
     return nothing
 end
 function apply_changes!(cover_block::CoverBlock, reduction_density::Union{Float32,Float64})::Nothing
