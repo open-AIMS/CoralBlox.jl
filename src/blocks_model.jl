@@ -126,7 +126,7 @@ function _k_area(cover::Array{Float64}, k_max::Float64)::Float64
         return 0.0
     end
 
-    return 1 - (sum(cover) / k_max)
+    return 1.0 - (sum(cover) / k_max)
 end
 
 function new_medium_size_class(
