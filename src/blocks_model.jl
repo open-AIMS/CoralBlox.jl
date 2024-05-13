@@ -123,6 +123,14 @@ function _k_area(cover::Array{Float64}, k_max::Float64)::Float64
     return 1 - (sum(cover) / k_max)
 end
 
+function new_small_size_class(
+    current_size_class::SizeClass,
+    current_growth::Float64
+)::SizeClass
+    new_cover_blocks = move_current_blocks(current_size_class, current_growth)
+    return SizeClass(new_cover_blocks, current_size_class)
+end
+
 function new_medium_size_class(
     prev_size_class::SizeClass,
     current_size_class::SizeClass,
@@ -306,12 +314,9 @@ function timestep(
 
     # Create new_size_classes
     # Small -> settlers
-    small_cover_blocks = CoverBlock.(cover[:, 1], interval_lower_bound.(size_classes[:, 1]), interval_upper_bound.(size_classes[:, 1]))
-    small_size_classes = SizeClass.(
-        small_cover_blocks,
-        fill(small, n_species),
-        linear_extension.(size_classes[:, 1]),
-        survival_rate.(size_classes[:, 1])
+    small_size_classes = new_small_size_class.(
+        size_classes[:, small],
+        growth[:, small],
     )
 
     medium_size_classes = new_medium_size_class.(
