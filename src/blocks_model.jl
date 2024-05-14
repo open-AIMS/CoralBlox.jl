@@ -125,6 +125,15 @@ end
 
 function new_small_size_class(
     current_size_class::SizeClass,
+    recruits::Float64,
+    current_growth::Float64
+)::SizeClass
+    new_cover_blocks = move_current_blocks(current_size_class, current_growth)
+    new_cover_blocks = append!([CoverBlock(recruits, current_size_class.interval[1], current_size_class.interval[2])], new_cover_blocks)
+    return SizeClass(new_cover_blocks, current_size_class)
+end
+function new_small_size_class(
+    current_size_class::SizeClass,
     current_growth::Float64
 )::SizeClass
     new_cover_blocks = move_current_blocks(current_size_class, current_growth)
@@ -290,6 +299,7 @@ end
 
 function timestep(
     cover::Array{Float64},
+    recruits::Array{Float64},
     size_classes::Matrix{SizeClass},
     max_available::Float64,
     timestep::Int,
@@ -316,6 +326,7 @@ function timestep(
     # Small -> settlers
     small_size_classes = new_small_size_class.(
         size_classes[:, small],
+        recruits,
         growth[:, small],
     )
 
