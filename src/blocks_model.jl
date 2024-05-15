@@ -129,6 +129,23 @@ function _k_area(cover::Array{Float64}, k_max::Float64)::Float64
     return 1.0 - (sum(cover) / k_max)
 end
 
+function new_small_size_class(
+    current_size_class::SizeClass,
+    recruits::Float64,
+    current_growth::Float64
+)::SizeClass
+    new_cover_blocks = move_current_blocks(current_size_class, current_growth)
+    new_cover_blocks = append!([CoverBlock(recruits, current_size_class.interval[1], current_size_class.interval[2])], new_cover_blocks)
+    return SizeClass(new_cover_blocks, current_size_class)
+end
+function new_small_size_class(
+    current_size_class::SizeClass,
+    current_growth::Float64
+)::SizeClass
+    new_cover_blocks = move_current_blocks(current_size_class, current_growth)
+    return SizeClass(new_cover_blocks, current_size_class)
+end
+
 function new_medium_size_class(
     prev_size_class::SizeClass,
     current_size_class::SizeClass,
@@ -190,7 +207,10 @@ function new_large_size_class(
     n_new_corals::Float64 = 0.0
     for cover_block in prev_size_class.cover_blocks[blocks_within_range]
         new_diameter_density = cover_block.diameter_density * prev_size_class.survival_rate
-        n_new_corals += new_diameter_density * prev_growth
+        interval_width = cover_block.interval[2] + prev_growth - max(
+            cover_block.interval[1] + prev_growth, current_size_class.interval[1]
+        )
+        n_new_corals += new_diameter_density * interval_width
     end
 
     current_Δinterval = current_size_class.interval[2] - current_size_class.interval[1]
@@ -287,6 +307,7 @@ end
 
 function timestep(
     cover::Array{Float64},
+    recruits::Array{Float64},
     size_classes::Matrix{SizeClass},
     max_available::Float64,
     timestep::Int,
@@ -311,12 +332,10 @@ function timestep(
 
     # Create new_size_classes
     # Small -> settlers
-    small_cover_blocks = CoverBlock.(cover[:, 1], interval_lower_bound.(size_classes[:, 1]), interval_upper_bound.(size_classes[:, 1]))
-    small_size_classes = SizeClass.(
-        small_cover_blocks,
-        fill(small, n_species),
-        linear_extension.(size_classes[:, 1]),
-        survival_rate.(size_classes[:, 1])
+    small_size_classes = new_small_size_class.(
+        size_classes[:, small],
+        recruits,
+        growth[:, small],
     )
 
     medium_size_classes = new_medium_size_class.(
