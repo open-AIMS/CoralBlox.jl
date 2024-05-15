@@ -201,7 +201,10 @@ function new_large_size_class(
     n_new_corals::Float64 = 0.0
     for cover_block in prev_size_class.cover_blocks[blocks_within_range]
         new_diameter_density = cover_block.diameter_density * prev_size_class.survival_rate
-        n_new_corals += new_diameter_density * prev_growth
+        interval_width = cover_block.interval[2] + prev_growth  - max(
+            cover_block.interval[1] + prev_growth, current_size_class.interval[1]
+        )
+        n_new_corals += new_diameter_density * interval_width
     end
 
     current_Δinterval = current_size_class.interval[2] - current_size_class.interval[1]
