@@ -77,41 +77,6 @@ function initial_cover(coral_spec)
     return coral_spec.k_max .* coral_spec.initial_cover_fracs
 end
 
-""" Run the model :) """
-function run_model(n_timesteps=100)
-    coral_spec = CoralSpec()
-
-    n_species::Int64, n_bins::Int64 = size(coral_spec.linear_extension)
-    cover::Array{Float64} = zeros(Float64, n_timesteps, n_species, n_bins)
-    cover[1, :, :] = initial_cover(coral_spec)
-
-    cover_blocks::Matrix{CoverBlock} = CoverBlock.(
-        cover[1, :, :],
-        coral_spec.bins[:, 1:end-1],
-        coral_spec.bins[:, 2:end]
-    )
-    size_classes::Matrix{SizeClass} = SizeClass.(
-        cover_blocks,
-        repeat(1:n_bins, 1, n_species)',
-        coral_spec.linear_extension,
-        coral_spec.survival_rate
-    )
-
-    ch = zeros(6, 7)
-    apply_changes!(size_classes, @view ch[2:end, :])
-
-    for t in 2:n_timesteps
-        cover[t, :, :] .= timestep_iteration(
-            t,
-            cover,
-            size_classes,
-            coral_spec,
-        )
-    end
-
-    return cover
-end
-
 """ Fraction of k_max available """
 function _k_area(cover::Array{Float64}, k_max::Float64)::Float64
     sum_cov::Float64 = sum(cover)
@@ -231,60 +196,6 @@ end
 
 function cover_block_virtual_cover(cover_block, linear_extension)
     return cover_block.diameter_density * Δinterval(cover_block.interval) * linear_extension
-end
-
-function timestep_iteration(
-    t::Int64,
-    cover::Array{Float64},
-    size_classes::Matrix{SizeClass},
-    coral_spec::CoralSpec,
-)
-    plot_size_class(size_classes, t)
-    k_area::Float64 = _k_area(cover[t-1, :, :], coral_spec.k_max)
-
-    coral_prop = dropdims(sum(cover[t-1, :, :], dims=2), dims=2) ./ dropdims(sum(cover[t-1, :, :], dims=(1, 2)), dims=(1, 2))
-    #_virtual_cover = virtual_cover(size_classes, coral_spec)
-    settlers_cover::Vector{Float64} = coral_spec.settler_fracs .* coral_spec.k_max .* log(1 + k_area) .* coral_prop
-
-    # Actual coral diameter growth [m/year]
-    growth::Matrix{Float64} = linear_extension.(size_classes) .* log(1 + k_area)#k_area
-
-    _, n_species, n_bins = size(cover)
-
-    small = 1
-    medium = collect(2:(n_bins-1))
-    large = n_bins
-
-    # Create new_size_classes
-    # Small -> settlers
-    small_cover_blocks = CoverBlock.(settlers_cover, interval_lower_bound.(size_classes[:, 1]), interval_upper_bound.(size_classes[:, 1]))
-    small_size_classes = SizeClass.(
-        small_cover_blocks,
-        fill(small, n_species),
-        linear_extension.(size_classes[:, 1]),
-        survival_rate.(size_classes[:, 1])
-    )
-
-    medium_size_classes = new_medium_size_class.(
-        size_classes[:, medium.-1],
-        size_classes[:, medium],
-        growth[:, medium.-1],
-        growth[:, medium]
-    )
-
-    large_size_classes = new_large_size_class.(
-        size_classes[:, large-1],
-        size_classes[:, large],
-        growth[:, large-1],
-    )
-
-    size_classes[:, small] = small_size_classes
-    size_classes[:, medium] = medium_size_classes
-    size_classes[:, large] = large_size_classes
-    return size_class_cover.(size_classes)
-
-    #@info "Cover after iteration $t-1: $(cover[t-1,:,:])"
-    #@info "K-area $k"
 end
 
 function apply_changes!(size_class::Matrix{SizeClass}, reduction_density::SubArray{<:Union{Float32,Float64},2})::Nothing
