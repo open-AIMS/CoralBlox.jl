@@ -326,19 +326,18 @@ function timestep(
             parentmodule(blocks_model).Plot.plot_size_class(size_classes, timestep)
         end
     end
-    k_area::Float64 = _k_area(cover, max_available)
 
-    # Actual coral diameter growth [m/year]
-    growth::Matrix{Float64} = linear_extension.(size_classes) .* log(1 + k_area)#k_area
+    # Coral diameter growth
+    k_area::Float64 = _k_area(cover, max_available_area)
+    growth::Matrix{Float64} = linear_extension.(size_classes) .* log(1 + k_area)
 
-    n_species, n_bins = size(cover)
+    _, n_bins = size(cover)
 
     small = 1
     medium = collect(2:(n_bins-1))
     large = n_bins
 
     # Create new_size_classes
-    # Small -> settlers
     small_size_classes = new_small_size_class.(
         size_classes[:, small],
         recruits,
@@ -362,8 +361,5 @@ function timestep(
     size_classes[:, medium] = medium_size_classes
     size_classes[:, large] = large_size_classes
     return size_class_cover.(size_classes)
-
-    #@info "Cover after iteration $t-1: $(cover[t-1,:,:])"
-    #@info "K-area $k"
 end
 end
