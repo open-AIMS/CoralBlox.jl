@@ -233,13 +233,6 @@ function cover_block_virtual_cover(cover_block, linear_extension)
     return cover_block.diameter_density * Δinterval(cover_block.interval) * linear_extension
 end
 
-"""
-- `cover` : array with dimensions timesteps X species X size class representing coral cover
-- `t` : Time step of that iteration
-- `bins` :
-- `linear_extension` :
-- `base_mortality_rate` :
-"""
 function timestep_iteration(
     t::Int64,
     cover::Array{Float64},
@@ -305,11 +298,24 @@ function apply_changes!(cover_block::CoverBlock, reduction_density::Union{Float3
     return nothing
 end
 
+"""
+    timestep(cover::Matrix{Float64}, recruits::Vector{Float64}, size_classes::Matrix{SizeClass}, max_available_area::Float64, timestep::Int, plot::Bool=false)
+
+Run one timestep iteration.
+
+# Arguments
+- `cover` : Coral cover with shape [groups ⋅ sizes]
+- `recruits` : Recruits cover for each group
+- `size_classes` : SizeClass instances with shape [groups ⋅ sizes]
+- `max_available_area` : Maximum available area for corals to live
+- `timestep` : Iteration timestep
+- `plot` : If true, plot size classes
+"""
 function timestep(
-    cover::Array{Float64},
-    recruits::Array{Float64},
+    cover::Matrix{Float64},
+    recruits::Vector{Float64},
     size_classes::Matrix{SizeClass},
-    max_available::Float64,
+    max_available_area::Float64,
     timestep::Int,
     plot::Bool=false
 )
