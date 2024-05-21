@@ -286,7 +286,8 @@ function timestep_iteration(
     #@info "Cover after iteration $t-1: $(cover[t-1,:,:])"
     #@info "K-area $k"
 end
-function apply_changes!(size_class::Matrix{SizeClass}, reduction_density::SubArray{<:Union{Float32, Float64},2})::Nothing
+
+function apply_changes!(size_class::Matrix{SizeClass}, reduction_density::SubArray{<:Union{Float32,Float64},2})::Nothing
     for i in axes(size_class, 1), j in axes(size_class, 2)
         apply_changes!.(size_class[i, j].cover_blocks, reduction_density[i, j])
     end
