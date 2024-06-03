@@ -25,6 +25,9 @@ end
 
 Resize CircularBuffer to the maximum capacity of n elements.
 If n is smaller than the current buffer length, the first n elements will be retained.
+
+# References
+1. DataStructures.jl
 """
 function reallocate!(cb::CircularBuffer, n::Integer)
     if n != cb.capacity
@@ -361,6 +364,7 @@ function transfer_blocks!(
     # Blocks that exceed this bound will move to the next size class
     moving_bound::Float64 = small_class.upper_bound - growth_rate
 
+    # Accumulate density to add to terminal class
     additional_density::Float64 = 0.0
     for block_idx in 1:n_blocks(small_class)
         small_class.block_densities[block_idx] *= p_survival
@@ -450,6 +454,7 @@ function timestep!(
     area_factor::Float64 = average_area(functional_group.size_classes[1])
     density::Float64 = recruitment / area_factor
     add_block!(functional_group.size_classes[1], density)
+
     return nothing
 end
 
@@ -463,48 +468,3 @@ function timestep!(
 
     return nothing
 end
-
-# using Makie, Makie.GeometryBasics
-#
-# function size_class_rectangles!(sc::SizeClass, idx::Int64)
-#     for i in 1:sc.block_lower_bounds.length
-#         width = sc.block_upper_bounds[i] - sc.block_lower_bounds[i]
-#         height = sc.block_densities[i] * width
-#         poly!(Rect(sc.block_lower_bounds[i], 0.0, width, log(10, height)), color=idx, strokewidth=0.0, colormap=:PuBuGn_6, colorrange=(1,6))
-#     end
-# end
-#
-# function plot_functional_group(functional_groups::Vector{FunctionalGroup}, timestep::Int64)
-#     f = Figure(; size=(1600, 1600))
-#     n_species = length(functional_groups)
-#     x = [1, 1, 2, 2, 3]
-#     y = [1, 2, 1, 2, 1]
-#     for species in 1:n_species
-#         Axis(f[x[species], y[species]], title="spec: $(species), timestep = $timestep")
-#
-#         for (idx, sc) in enumerate(functional_groups[species].size_classes)
-#             size_class_rectangles!(sc, idx)
-#             # _x = vcat([[cv.interval[1], cv.interval[2]] for cv in sc.cover_blocks]...)
-#             # _y = vcat([fill(cv.diameter_density * (Δinterval(cv.interval)), 2) for cv in sc.cover_blocks]...)
-#             # n_corals += sum(_y) / 2
-#             # bar!(
-#             #     _x,
-#             #     _y,
-#             #     yscale=:log10,
-#             #     color=colors[size],
-#             #     fill=(0, 1, colors[size]),
-#             #     label="Size: $size",
-#             #     leg_title="SizeClass"
-#             # )
-#         end
-#
-#         # plot!(
-#         #     [coral_spec.bins[1], coral_spec.bins[end]],
-#         #     [n_corals, n_corals],
-#         #     yscale=:log10,
-#         #     line=(2, :solid, :black)
-#         # )
-#     end
-#
-#     save("./figures/gif/t$(timestep).png", f)
-# end
