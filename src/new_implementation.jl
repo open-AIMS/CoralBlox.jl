@@ -468,3 +468,36 @@ function timestep!(
 
     return nothing
 end
+
+"""
+    coral_cover(functional_group::Vector{FunctionalGroup}, cache::SubArray{Float64, 2})::Nothing
+    coral_cover(functional_group::FunctionalGroup, cache::SubArray{Float64, 1})::Nothing
+    coral_cover(size_class::SizeClass)::Float64
+"""
+function coral_cover(
+    functional_group::Vector{FunctionalGroup},
+    cache::SubArray{Float64, 2}
+)::Nothing
+    coral_cover.(functional_group, eachrow(cache))
+
+    return nothing
+end
+function coral_cover(
+    functional_group::FunctionalGroup,
+    cache::SubArray{Float64, 1}
+)::Nothing
+    cache[1:end-1] .= coral_cover.(functional_group.size_classes)
+    cache[end] = functional_group.terminal_class.density * average_area(
+        functional_group.terminal_class
+    )
+    return nothing
+end
+function coral_cover(size_class::SizeClass)::Float64
+    cover::Float64 = 0.0
+    for i in 1:n_blocks(size_class)
+        cover += size_class.block_densities[i] * π / 12 * (
+            size_class.block_upper_bounds[i]^3 - size_class.block_lower_bounds[i]^3
+        )
+    end
+    return cover
+end
