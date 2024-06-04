@@ -125,40 +125,40 @@ function init_functional_group(
 end
 
 """
-    apply_survival!(functional_group::FunctionalGroup, survival_rate::Vector{Float64})::Nothing
-    apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
+    _apply_survival!(functional_group::FunctionalGroup, survival_rate::Vector{Float64})::Nothing
+    _apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
 
 Apply mortality/survival probability to coral densities in blocks.
 """
-function apply_survival!(
+function _apply_survival!(
     functional_group::FunctionalGroup,
     survival_rate::Union{Vector{Float64}, SubArray{Float64, 1}}
 )::Nothing
-    apply_survival!.(functional_group.size_classes, survival_rate[1:end-1])
+    _apply_survival!.(functional_group.size_classes, survival_rate[1:end-1])
     functional_group.terminal_class.density *= survival_rate[end]
 
     return nothing
 end
-function apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
+function _apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
     size_class.block_densities.buffer .*= survival_rate
 
     return nothing
 end
 
 """
-    apply_growth!(functional_group::FunctionalGroup, growth_rates::Vector{Float64})::Nothing
-    apply_growth!(size_class::SizeClass, growth_rate::Float64)::Nothing
+    _apply_internal_growth!(functional_group::FunctionalGroup, growth_rates::Vector{Float64})::Nothing
+    _apply_internal_growth!(size_class::SizeClass, growth_rate::Float64)::Nothing
 
 Move coral blocks within size classes. Constrain blocks within bounds of size class.
 """
-function apply_growth!(
+function _apply_internal_growth!(
     functional_group::FunctionalGroup,
     growth_rates::Vector{Float64}
 )::Nothing
-    apply_growth!.(functional_group.size_classes, growth_rates)
+    _apply_internal_growth!.(functional_group.size_classes, growth_rates)
     return nothing
 end
-function apply_growth!(size_class::SizeClass, growth_rate::Float64)::Nothing
+function _apply_internal_growth!(size_class::SizeClass, growth_rate::Float64)::Nothing
     # Apply growth directly to underlying buffer
     size_class.block_lower_bounds.buffer .+= growth_rate
 
@@ -395,7 +395,7 @@ function transfer_and_grow!(
     )
 
     # Grow corals in size classes
-    apply_growth!(small_class, small_growth_rate)
+    _apply_internal_growth!(small_class, small_growth_rate)
     # Remove corals that out grow bounds
     remove_outgrown!(small_class)
     return nothing
@@ -413,7 +413,7 @@ function transfer_and_grow!(
     )
 
     # Grow corals in size classes
-    apply_growth!(small_class, growth_rate)
+    _apply_internal_growth!(small_class, growth_rate)
     # Remove corals that out grow bounds
     remove_outgrown!(small_class)
 
@@ -433,7 +433,7 @@ function timestep!(
     growth_rate::Union{Vector{Float64}, SubArray{Float64, 1}},
     survival_rate::Union{Vector{Float64}, SubArray{Float64, 1}}
 )::Nothing
-    apply_survival!(functional_group, survival_rate)
+    _apply_survival!(functional_group, survival_rate)
 
     transfer_and_grow!(
         functional_group.size_classes[end],
