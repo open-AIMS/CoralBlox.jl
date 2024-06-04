@@ -69,7 +69,7 @@ function reuse_buffers!(size_class::SizeClass, cover::Float64)::Nothing
     return nothing
 end
 
-function init_size_class(
+function SizeClass(
     lower_bound::Float64,
     upper_bound::Float64,
     cover::Float64;
@@ -95,7 +95,7 @@ function init_size_class(
     )
 end
 
-function init_terminal_class(
+function CreateTerminalClass(
     lower_bound::Float64,
     upper_bound::Float64,
     cover::Float64
@@ -110,13 +110,13 @@ function init_terminal_class(
     )
 end
 
-function init_functional_group(
+function FunctionalGroup(
     lower_bounds::Vector{Float64},
     upper_bounds::Vector{Float64},
     cover::Vector{Float64}
 )::FunctionalGroup
-    size_classes::Vector{SizeClass} = init_size_class.(lower_bounds[1:end-1], upper_bounds[1:end-1], cover[1:end-1])
-    terminal_class::TerminalClass = init_terminal_class(lower_bounds[end], upper_bounds[end], cover[end])
+    size_classes::Vector{SizeClass} = SizeClass.(lower_bounds[1:end-1], upper_bounds[1:end-1], cover[1:end-1])
+    terminal_class::TerminalClass = CreateTerminalClass(lower_bounds[end], upper_bounds[end], cover[end])
 
     return FunctionalGroup(
         size_classes,
