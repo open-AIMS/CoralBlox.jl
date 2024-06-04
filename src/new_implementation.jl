@@ -1,3 +1,5 @@
+module circuler
+
 using DataStructures: CircularBuffer
 
 struct SizeClass
@@ -500,4 +502,5 @@ function coral_cover(size_class::SizeClass)::Float64
         )
     end
     return cover
+end
 end
