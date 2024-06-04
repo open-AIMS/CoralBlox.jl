@@ -301,7 +301,6 @@ function calculate_new_block!(
 )::Tuple{Float64, Float64, Float64}
     # Check if the lower bound outgrows the upper bound as well
     outgrowing_lb::Bool = block_lb > (next_class.lower_bound - prev_growth_rate)
-
     # Calculate bounds and density of new cover block
     new_lower_bound::Float64 = (
         !outgrowing_lb ? next_class.lower_bound : block_lb + adjusted_growth(
@@ -311,12 +310,13 @@ function calculate_new_block!(
     new_upper_bound::Float64 = block_ub + adjusted_growth(
         block_ub, next_class.lower_bound, prev_growth_rate, next_growth_rate
     )
-    percentage_moving::Float64 = outgrowing_lb ? 1 : (
-        (next_class.lower_bound - (block_lb - prev_growth_rate)) / (block_ub - block_lb)
+
+    proportion_moving::Float64 = outgrowing_lb ? 1 : 1 - (
+        (next_class.lower_bound - (block_lb + prev_growth_rate)) / (block_ub - block_lb)
     )
 
     # New Density = (number of corals * proportion moving)
-    n_corals_moving::Float64 = block_density * (block_ub - block_lb) * percentage_moving
+    n_corals_moving::Float64 = block_density * (block_ub - block_lb) * proportion_moving
     new_density::Float64 = n_corals_moving / (new_upper_bound - new_lower_bound)
 
     return new_lower_bound, new_upper_bound, new_density
