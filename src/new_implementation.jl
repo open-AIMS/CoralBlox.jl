@@ -125,22 +125,22 @@ function init_functional_group(
 end
 
 """
-    apply_survival!(functional_group::FunctionalGroup, p_survival::Vector{Float64})::Nothing
-    apply_survival!(size_class::SizeClass, p_survival::Float64)::Nothing
+    apply_survival!(functional_group::FunctionalGroup, survival_rate::Vector{Float64})::Nothing
+    apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
 
 Apply mortality/survival probability to coral densities in blocks.
 """
 function apply_survival!(
     functional_group::FunctionalGroup,
-    p_survival::Union{Vector{Float64}, SubArray{Float64, 1}}
+    survival_rate::Union{Vector{Float64}, SubArray{Float64, 1}}
 )::Nothing
-    apply_survival!.(functional_group.size_classes, p_survival[1:end-1])
-    functional_group.terminal_class.density *= p_survival[end]
+    apply_survival!.(functional_group.size_classes, survival_rate[1:end-1])
+    functional_group.terminal_class.density *= survival_rate[end]
 
     return nothing
 end
-function apply_survival!(size_class::SizeClass, p_survival::Float64)::Nothing
-    size_class.block_densities.buffer .*= p_survival
+function apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
+    size_class.block_densities.buffer .*= survival_rate
 
     return nothing
 end
@@ -241,18 +241,18 @@ function remove_outgrown!(size_class::SizeClass)::Nothing
 end
 
 """
-    adjusted_growth(bound::Float64, upper_bound::Float64, small_growth::Float64, large_growth::Float64)::Float64
+    adjusted_growth(bound::Float64, upper_bound::Float64, small_growth_rate::Float64, large_growth_rate::Float64)::Float64
 
 Calculate the change in a bound when crossing a size class boundary.
 """
 function adjusted_growth(
     bound::Float64,
     upper_bound::Float64,
-    small_growth::Float64,
-    large_growth::Float64
+    small_growth_rate::Float64,
+    large_growth_rate::Float64
 )::Float64
-    time_to_bound::Float64 = (upper_bound - bound) / small_growth
-    return time_to_bound * small_growth + (1 - time_to_bound) * large_growth
+    time_to_bound::Float64 = (upper_bound - bound) / small_growth_rate
+    return time_to_bound * small_growth_rate + (1 - time_to_bound) * large_growth_rate
 end
 
 """
@@ -286,7 +286,7 @@ function add_block!(
 end
 
 """
-    calculate_new_block!(block_lb::Float64, block_ub::Float64, block_density::Float64, large_class::SizeClass, small_growth::Float64, large_growth::Float64)::Nothing
+    calculate_new_block!(block_lb::Float64, block_ub::Float64, block_density::Float64, large_class::SizeClass, small_growth_rate::Float64, large_growth_rate::Float64)::Nothing
 
 Calculate the density, lower bound and upper bound of a block transfitioning from a smaller
 size class to a larger size class.
@@ -296,23 +296,23 @@ function calculate_new_block!(
     block_ub::Float64,
     block_density::Float64,
     large_class::SizeClass,
-    small_growth::Float64,
-    large_growth::Float64
+    small_growth_rate::Float64,
+    large_growth_rate::Float64
 )::Tuple{Float64, Float64, Float64}
     # Check if the lower bound outgrows the upper bound as well
-    outgrowing_lb::Bool = block_lb > (large_class.lower_bound - small_growth)
+    outgrowing_lb::Bool = block_lb > (large_class.lower_bound - small_growth_rate)
 
     # Calculate bounds and density of new cover block
     new_lower_bound::Float64 = (
         !outgrowing_lb ? large_class.lower_bound : block_lb + adjusted_growth(
-            block_lb, large_class.lower_bound, small_growth, large_growth
+            block_lb, large_class.lower_bound, small_growth_rate, large_growth_rate
         )
     )
     new_upper_bound::Float64 = block_ub + adjusted_growth(
-        block_ub, large_class.lower_bound, small_growth, large_growth
+        block_ub, large_class.lower_bound, small_growth_rate, large_growth_rate
     )
     percentage_moving::Float64 = outgrowing_lb ? 1 : (
-        (large_class.lower_bound - (block_lb - small_growth)) / (block_ub - block_lb)
+        (large_class.lower_bound - (block_lb - small_growth_rate)) / (block_ub - block_lb)
     )
 
     # New Density = (number of corals * proportion moving)
@@ -323,7 +323,7 @@ function calculate_new_block!(
 end
 
 """
-    transfer_blocks!(small_class::SizeClass, large_class::SizeClass, small_growth::Float64, large_growth::Float64)::Nothing
+    transfer_blocks!(small_class::SizeClass, large_class::SizeClass, small_growth_rate::Float64, large_growth_rate::Float64)::Nothing
     transfer_blocks!(small_class::SizeClass, terminal::TerminalClass, growth_rate::Float64)::Nothing
 
 Transfer blocks from smaller size class to larger size class/Terminal class.
@@ -331,11 +331,11 @@ Transfer blocks from smaller size class to larger size class/Terminal class.
 function transfer_blocks!(
     small_class::SizeClass,
     large_class::SizeClass,
-    small_growth::Float64,
-    large_growth::Float64
+    small_growth_rate::Float64,
+    large_growth_rate::Float64
 )::Nothing
     # Blocks that exceed this bound will move to the next size class
-    moving_bound::Float64 = small_class.upper_bound - small_growth
+    moving_bound::Float64 = small_class.upper_bound - small_growth_rate
 
     for block_idx in 1:n_blocks(small_class)
         # Skip blocks that are not migrating
@@ -347,8 +347,8 @@ function transfer_blocks!(
             small_class.block_upper_bounds[block_idx],
             small_class.block_densities[block_idx],
             large_class,
-            small_growth,
-            large_growth
+            small_growth_rate,
+            large_growth_rate
         )
         add_block!(large_class, new_lower_bound, new_upper_bound, new_density)
     end
@@ -383,19 +383,19 @@ end
 function transfer_and_grow!(
     small_class::SizeClass,
     large_class::SizeClass,
-    small_growth::Float64,
-    large_growth::Float64,
+    small_growth_rate::Float64,
+    large_growth_rate::Float64,
 )::Nothing
 
     transfer_blocks!(
         small_class,
         large_class,
-        small_growth,
-        large_growth
+        small_growth_rate,
+        large_growth_rate
     )
 
     # Grow corals in size classes
-    apply_growth!(small_class, small_growth)
+    apply_growth!(small_class, small_growth_rate)
     # Remove corals that out grow bounds
     remove_outgrown!(small_class)
     return nothing
@@ -430,20 +430,24 @@ end
 function timestep!(
     functional_group::FunctionalGroup,
     recruitment::Float64,
-    growth::Union{Vector{Float64}, SubArray{Float64, 1}},
-    p_survival::Union{Vector{Float64}, SubArray{Float64, 1}}
+    growth_rate::Union{Vector{Float64}, SubArray{Float64, 1}},
+    survival_rate::Union{Vector{Float64}, SubArray{Float64, 1}}
 )::Nothing
-    apply_survival!(functional_group, p_survival)
+    apply_survival!(functional_group, survival_rate)
 
-    transfer_and_grow!(functional_group.size_classes[end], functional_group.terminal_class, growth[end])
+    transfer_and_grow!(
+        functional_group.size_classes[end],
+        functional_group.terminal_class,
+        growth_rate[end]
+    )
 
     n_classes::Int64 = length(functional_group.size_classes)
     for size_idx in n_classes:-1:2
         transfer_and_grow!(
             functional_group.size_classes[size_idx-1],
             functional_group.size_classes[size_idx],
-            growth[size_idx-1],
-            growth[size_idx],
+            growth_rate[size_idx-1],
+            growth_rate[size_idx],
         )
     end
 
@@ -457,10 +461,10 @@ end
 function timestep!(
     functional_groups::Vector{FunctionalGroup},
     recruitment::Vector{Float64},
-    growth::Matrix{Float64},
-    survival::Matrix{Float64}
+    growth_rate::Matrix{Float64},
+    survival_rate::Matrix{Float64}
 )::Nothing
-    timestep!.(functional_groups, recruitment, eachrow(growth), eachrow(survival))
+    timestep!.(functional_groups, recruitment, eachrow(growth_rate), eachrow(survival_rate))
 
     return nothing
 end
