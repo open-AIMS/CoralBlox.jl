@@ -2,9 +2,9 @@ module blocks_model
 
 include("coral_spec.jl")
 # TODO Use only Tuples? Maybe have an intermediate struct called CoralBlock or smth?
-mutable struct CoverBlock
+mutable struct CoverBlock{N<:NTuple{2,Float64}}
     diameter_density::Float64       # Number of corals / m
-    interval::NTuple{2,Float64}
+    interval::N
 end
 
 function CoverBlock(initial_cover::Float64, bin_i::Float64, bin_f::Float64)::CoverBlock
@@ -12,12 +12,12 @@ function CoverBlock(initial_cover::Float64, bin_i::Float64, bin_f::Float64)::Cov
 end
 
 #TODO I should remove linear extension, size_class and survival_rate from here to improve performance
-struct SizeClass
-    cover_blocks::Vector{CoverBlock}
-    interval::NTuple{2,Float64}
-    size_class::Int64
-    linear_extension::Float64           # m/year
-    survival_rate::Float64              # %
+mutable struct SizeClass{N<:NTuple{2,Float64},C<:CoverBlock}
+    cover_blocks::Vector{C}
+    const interval::N
+    const size_class::Int64
+    const linear_extension::Float64           # m/year
+    const survival_rate::Float64              # %
 end
 
 """
@@ -30,7 +30,7 @@ function SizeClass(
     linear_extension::Float64,
     survival_rate::Float64
 )
-    return SizeClass([cover_block], cover_block.interval, size_class, linear_extension, survival_rate)
+    return SizeClass(CoverBlock[cover_block], cover_block.interval, size_class, linear_extension, survival_rate)
 end
 
 function SizeClass(
@@ -41,7 +41,7 @@ function SizeClass(
 end
 
 """ Area factor for a corals with diameter between bin_i and bin_f """
-area_factor(bin_i, bin_f) = (π / 12) * (bin_f^3 - bin_i^3)
+area_factor(bin_i, bin_f)::Float64 = (π / 12.0) * (bin_f^3 - bin_i^3)
 
 """ Interval (or lower and upper bin bounds) of a SizeClass """
 interval(size_class::SizeClass)::NTuple{2,Float64} = size_class.interval
@@ -73,7 +73,7 @@ end
 Fraction of k_max filled with each size class corals at time t
 """
 function initial_cover(coral_spec)
-    @assert (sum(coral_spec.initial_cover_fracs) <= 1) "Sum of all relative cover should be ≤ 1"
+    @assert (sum(coral_spec.initial_cover_fracs) <= 1.0) "Sum of all relative cover should be ≤ 1"
     return coral_spec.k_max .* coral_spec.initial_cover_fracs
 end
 
@@ -99,16 +99,33 @@ function new_small_size_class(
     recruits::Float64,
     current_growth::Float64
 )::SizeClass
-    new_cover_blocks = move_current_blocks(current_size_class, current_growth)
-    new_cover_blocks = append!([CoverBlock(recruits, current_size_class.interval[1], current_size_class.interval[2])], new_cover_blocks)
+    new_cover_blocks = append!(CoverBlock[CoverBlock(recruits, current_size_class.interval[1], current_size_class.interval[2])], move_current_blocks(current_size_class, current_growth))
     return SizeClass(new_cover_blocks, current_size_class)
 end
 function new_small_size_class(
     current_size_class::SizeClass,
     current_growth::Float64
 )::SizeClass
-    new_cover_blocks = move_current_blocks(current_size_class, current_growth)
+    new_cover_blocks = move_current_blocks!(current_size_class, current_growth)
     return SizeClass(new_cover_blocks, current_size_class)
+end
+
+function new_small_size_class!(
+    current_size_class::SizeClass,
+    recruits::Float64,
+    current_growth::Float64
+)::Nothing
+    new_cover_blocks = append!(CoverBlock[CoverBlock(recruits, current_size_class.interval[1], current_size_class.interval[2])], move_current_blocks(current_size_class, current_growth))
+    current_size_class.cover_blocks = new_cover_blocks
+
+    return nothing
+end
+function new_small_size_class!(
+    current_size_class::SizeClass,
+    current_growth::Float64
+)::Nothing
+    current_size_class.cover_blocks = move_current_blocks!(current_size_class, current_growth)
+    return nothing
 end
 
 function new_medium_size_class(
@@ -123,42 +140,92 @@ function new_medium_size_class(
     new_cover_blocks = vcat(new_cover_blocks_prev, new_cover_blocks_current)
     return SizeClass(new_cover_blocks, current_size_class)
 end
+function new_medium_size_class!(
+    prev_size_class::SizeClass,
+    current_size_class::SizeClass,
+    prev_growth::Float64,
+    current_growth::Float64
+)::Nothing
+    prev_blocks = move_prev_blocks!(prev_size_class, prev_growth)
+    current_blocks = move_current_blocks!(current_size_class, current_growth)
+
+    current_size_class.cover_blocks = vcat(prev_blocks, current_blocks)
+
+    return nothing
+end
 
 function move_prev_blocks(size_class::SizeClass, growth::Float64)::Vector{CoverBlock}
     # Select blocks that are going to next SizeClass
-    new_upper_bounds = interval_upper_bound.(size_class.cover_blocks) .+ growth
-    sc_upper_bound = size_class.interval[2]
-    blocks_within_range = new_upper_bounds .> sc_upper_bound
+    new_upper_bounds::Vector{Float64} = interval_upper_bound.(size_class.cover_blocks) .+ growth
+    sc_upper_bound::Float64 = size_class.interval[2]
+    blocks_within_range::BitVector = new_upper_bounds .> sc_upper_bound
 
-    new_blocks = Array{CoverBlock}(undef, sum(blocks_within_range))
+    new_blocks = Vector{CoverBlock}(undef, sum(blocks_within_range))
     for (idx, cover_block) in enumerate(size_class.cover_blocks[blocks_within_range])
-        grown_lb = interval(cover_block)[1] + growth
-        new_lower_bound = grown_lb < sc_upper_bound ? sc_upper_bound : grown_lb
-        new_upper_bound = interval(cover_block)[2] + growth
-        new_interval = (new_lower_bound, new_upper_bound)
-        new_diameter_density = cover_block.diameter_density * size_class.survival_rate
+        grown_lb::Float64 = interval(cover_block)[1] + growth
+        new_lower_bound::Float64 = grown_lb < sc_upper_bound ? sc_upper_bound : grown_lb
+        new_upper_bound::Float64 = interval(cover_block)[2] + growth
+        new_interval::Tuple{Float64, Float64} = (new_lower_bound, new_upper_bound)
+        new_diameter_density::Float64 = cover_block.diameter_density * size_class.survival_rate
         new_blocks[idx] = CoverBlock(new_diameter_density, new_interval)
     end
 
     return new_blocks
 end
+function move_prev_blocks!(size_class::SizeClass, growth::Float64)::Vector{CoverBlock}
+    # Select blocks that are going to next SizeClass
+    new_upper_bounds::Vector{Float64} = interval_upper_bound.(size_class.cover_blocks) .+ growth
+    sc_upper_bound::Float64 = size_class.interval[2]
+    blocks_within_range::BitVector = new_upper_bounds .> sc_upper_bound
+
+    for (idx, cover_block) in zip(findall(blocks_within_range), size_class.cover_blocks[blocks_within_range])
+        grown_lb::Float64 = interval(cover_block)[1] + growth
+        new_lower_bound::Float64 = grown_lb < sc_upper_bound ? sc_upper_bound : grown_lb
+        new_upper_bound::Float64 = interval(cover_block)[2] + growth
+        new_interval::Tuple{Float64, Float64} = (new_lower_bound, new_upper_bound)
+        new_diameter_density::Float64 = cover_block.diameter_density * size_class.survival_rate
+
+        size_class.cover_blocks[idx].diameter_density = new_diameter_density
+        size_class.cover_blocks[idx].interval = new_interval
+    end
+
+    return size_class.cover_blocks[blocks_within_range]
+end
 
 function move_current_blocks(size_class::SizeClass, growth::Float64)::Vector{CoverBlock}
     new_lower_bounds = interval_lower_bound.(size_class.cover_blocks) .+ growth
     sc_upper_bound = size_class.interval[2]
-    blocks_within_range = new_lower_bounds .< sc_upper_bound
+    blocks_within_range::BitVector = new_lower_bounds .< sc_upper_bound
 
-    new_blocks = Array{CoverBlock}(undef, sum(blocks_within_range))
+    new_blocks = Vector{CoverBlock}(undef, sum(blocks_within_range))
     for (idx, cover_block) in enumerate(size_class.cover_blocks[blocks_within_range])
-        grown_ub = interval(cover_block)[2] + growth
-        new_upper_bound = grown_ub < sc_upper_bound ? grown_ub : sc_upper_bound
-        new_lower_bound = interval_lower_bound(cover_block) + growth
-        new_interval = (new_lower_bound, new_upper_bound)
-        new_diameter_density = cover_block.diameter_density * size_class.survival_rate
+        grown_ub::Float64 = interval(cover_block)[2] + growth
+        new_upper_bound::Float64 = grown_ub < sc_upper_bound ? grown_ub : sc_upper_bound
+        new_lower_bound::Float64 = interval_lower_bound(cover_block) + growth
+        new_interval::Tuple{Float64,Float64} = (new_lower_bound, new_upper_bound)
+        new_diameter_density::Float64 = cover_block.diameter_density * size_class.survival_rate
         new_blocks[idx] = CoverBlock(new_diameter_density, new_interval)
     end
 
     return new_blocks
+end
+function move_current_blocks!(size_class::SizeClass, growth::Float64)::Vector{CoverBlock}
+    new_lower_bounds = interval_lower_bound.(size_class.cover_blocks) .+ growth
+    sc_upper_bound = size_class.interval[2]
+    blocks_within_range::BitVector = new_lower_bounds .< sc_upper_bound
+
+    for (idx, cover_block) in zip(findall(blocks_within_range), size_class.cover_blocks[blocks_within_range])
+        grown_ub::Float64 = interval(cover_block)[2] + growth
+        new_upper_bound::Float64 = grown_ub < sc_upper_bound ? grown_ub : sc_upper_bound
+        new_lower_bound::Float64 = interval_lower_bound(cover_block) + growth
+        new_interval::Tuple{Float64,Float64} = (new_lower_bound, new_upper_bound)
+        new_diameter_density::Float64 = cover_block.diameter_density * size_class.survival_rate
+
+        size_class.cover_blocks[idx].diameter_density = new_diameter_density
+        size_class.cover_blocks[idx].interval = new_interval
+    end
+
+    return size_class.cover_blocks[blocks_within_range]
 end
 
 function new_large_size_class(
@@ -171,8 +238,8 @@ function new_large_size_class(
 
     n_new_corals::Float64 = 0.0
     for cover_block in prev_size_class.cover_blocks[blocks_within_range]
-        new_diameter_density = cover_block.diameter_density * prev_size_class.survival_rate
-        interval_width = cover_block.interval[2] + prev_growth - max(
+        new_diameter_density::Float64 = cover_block.diameter_density * prev_size_class.survival_rate
+        interval_width::Float64 = cover_block.interval[2] + prev_growth - max(
             cover_block.interval[1] + prev_growth, current_size_class.interval[1]
         )
         n_new_corals += new_diameter_density * interval_width
@@ -183,7 +250,35 @@ function new_large_size_class(
     new_diameter_density = (n_new_corals / current_Δinterval) + current_cover_block.diameter_density * current_size_class.survival_rate
 
     new_cover_block = CoverBlock(new_diameter_density, current_cover_block.interval)
-    return SizeClass([new_cover_block], current_size_class)
+    return SizeClass(CoverBlock[new_cover_block], current_size_class)
+end
+function new_large_size_class!(
+    prev_size_class::SizeClass,
+    current_size_class::SizeClass,
+    prev_growth::Float64,
+)::Nothing
+    new_upper_bound = interval_upper_bound.(prev_size_class.cover_blocks) .+ prev_growth
+    blocks_within_range = new_upper_bound .> prev_size_class.interval[2]
+
+    n_new_corals::Float64 = 0.0
+    for cover_block in prev_size_class.cover_blocks[blocks_within_range]
+        new_diameter_density::Float64 = cover_block.diameter_density * prev_size_class.survival_rate
+        interval_width::Float64 = cover_block.interval[2] + prev_growth - max(
+            cover_block.interval[1] + prev_growth, current_size_class.interval[1]
+        )
+        n_new_corals += new_diameter_density * interval_width
+    end
+
+    current_Δinterval = current_size_class.interval[2] - current_size_class.interval[1]
+    current_cover_block = current_size_class.cover_blocks[1]
+    new_diameter_density = (n_new_corals / current_Δinterval) + current_cover_block.diameter_density * current_size_class.survival_rate
+
+    current_size_class.cover_blocks = CoverBlock[CoverBlock(new_diameter_density, current_cover_block.interval)]
+
+    # new_cover_block = CoverBlock(new_diameter_density, current_cover_block.interval)
+    # return SizeClass(CoverBlock[new_cover_block], current_size_class)
+
+    return nothing
 end
 
 function virtual_cover(size_classes, coral_spec)::Float64
@@ -249,28 +344,45 @@ function timestep(
     large = n_bins
 
     # Create new_size_classes
-    small_size_classes = new_small_size_class.(
+    # small_size_classes = new_small_size_class.(
+    #     size_classes[:, small],
+    #     recruits,
+    #     growth[:, small],
+    # )
+    new_small_size_class!.(
         size_classes[:, small],
         recruits,
         growth[:, small],
     )
 
-    medium_size_classes = new_medium_size_class.(
+    # medium_size_classes = new_medium_size_class.(
+    #     size_classes[:, medium.-1],
+    #     size_classes[:, medium],
+    #     growth[:, medium.-1],
+    #     growth[:, medium]
+    # )
+    new_medium_size_class!.(
         size_classes[:, medium.-1],
         size_classes[:, medium],
         growth[:, medium.-1],
         growth[:, medium]
     )
 
-    large_size_classes = new_large_size_class.(
+    # large_size_classes = new_large_size_class.(
+    #     size_classes[:, large-1],
+    #     size_classes[:, large],
+    #     growth[:, large-1],
+    # )
+    new_large_size_class!.(
         size_classes[:, large-1],
         size_classes[:, large],
         growth[:, large-1],
     )
 
-    size_classes[:, small] = small_size_classes
-    size_classes[:, medium] = medium_size_classes
-    size_classes[:, large] = large_size_classes
+    # size_classes[:, small] = small_size_classes
+    # size_classes[:, medium] = medium_size_classes
+    # size_classes[:, large] = large_size_classes
     return size_class_cover.(size_classes)
 end
+
 end
