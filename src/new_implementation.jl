@@ -132,7 +132,7 @@ Apply mortality/survival probability to coral densities in blocks.
 """
 function apply_survival!(
     functional_group::FunctionalGroup,
-    p_survival::Vector{Float64}
+    p_survival::Union{Vector{Float64}, SubArray{Float64, 1}}
 )::Nothing
     apply_survival!.(functional_group.size_classes, p_survival[1:end-1])
     functional_group.terminal_class.density *= p_survival[end]
@@ -324,7 +324,7 @@ end
 
 """
     transfer_blocks!(small_class::SizeClass, large_class::SizeClass, small_growth::Float64, large_growth::Float64)::Nothing
-    transfer_blocks!(small_class::SizeClass, terminal::TerminalClass, growth_rate::Float64, p_survival::Float64)::Nothing
+    transfer_blocks!(small_class::SizeClass, terminal::TerminalClass, growth_rate::Float64)::Nothing
 
 Transfer blocks from smaller size class to larger size class/Terminal class.
 """
@@ -358,8 +358,7 @@ end
 function transfer_blocks!(
     small_class::SizeClass,
     terminal::TerminalClass,
-    growth_rate::Float64,
-    p_survival::Float64
+    growth_rate::Float64
 )::Nothing
     # Blocks that exceed this bound will move to the next size class
     moving_bound::Float64 = small_class.upper_bound - growth_rate
@@ -367,7 +366,6 @@ function transfer_blocks!(
     # Accumulate density to add to terminal class
     additional_density::Float64 = 0.0
     for block_idx in 1:n_blocks(small_class)
-        small_class.block_densities[block_idx] *= p_survival
         # Skip blocks that are not migrating
         if small_class.block_upper_bounds[block_idx] <= moving_bound
             continue
@@ -406,14 +404,12 @@ function transfer_and_grow!(
     small_class::SizeClass,
     terminal::TerminalClass,
     growth_rate::Float64,
-    p_survival
 )::Nothing
 
     transfer_blocks!(
         small_class,
         terminal,
-        growth_rate,
-        p_survival
+        growth_rate
     )
 
     # Grow corals in size classes
@@ -437,9 +433,9 @@ function timestep!(
     growth::Union{Vector{Float64}, SubArray{Float64, 1}},
     p_survival::Union{Vector{Float64}, SubArray{Float64, 1}}
 )::Nothing
+    apply_survival!(functional_group, p_survival)
 
-    functional_group.terminal_class.density *= p_survival[end]
-    transfer_and_grow!(functional_group.size_classes[end], functional_group.terminal_class, growth[end], p_survival[end-1])
+    transfer_and_grow!(functional_group.size_classes[end], functional_group.terminal_class, growth[end])
 
     n_classes::Int64 = length(functional_group.size_classes)
     for size_idx in n_classes:-1:2
