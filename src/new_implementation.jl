@@ -1,3 +1,5 @@
+module circular
+
 using DataStructures: CircularBuffer
 
 struct SizeClass
@@ -45,7 +47,14 @@ function reallocate!(cb::CircularBuffer, n::Integer)
     return cb
 end
 
-function reuse_buffers!(functional_group::FunctionalGroup, cover::Vector{Float64})::FunctionalGroup
+function reuse_buffers!(
+    functional_groups::Vector{FunctionalGroup},
+    cover::Union{Matrix{Float64}, SubArray{Float64, 2}}
+)::Vector{FunctionalGroup}
+    reuse_buffers!.(functional_groups, eachrow(cover))
+    return functional_groups
+end
+function reuse_buffers!(functional_group::FunctionalGroup, cover::AbstractVector{Float64})::FunctionalGroup
     reuse_buffers!.(functional_group.size_classes, cover[1:end-1])
 
     area_factor::Float64 = average_area(functional_group.terminal_class)
@@ -111,9 +120,9 @@ function CreateTerminalClass(
 end
 
 function FunctionalGroup(
-    lower_bounds::Vector{Float64},
-    upper_bounds::Vector{Float64},
-    cover::Vector{Float64}
+    lower_bounds::AbstractVector{Float64},
+    upper_bounds::AbstractVector{Float64},
+    cover::AbstractVector{Float64}
 )::FunctionalGroup
     size_classes::Vector{SizeClass} = SizeClass.(lower_bounds[1:end-1], upper_bounds[1:end-1], cover[1:end-1])
     terminal_class::TerminalClass = CreateTerminalClass(lower_bounds[end], upper_bounds[end], cover[end])
@@ -125,21 +134,29 @@ function FunctionalGroup(
 end
 
 """
-    _apply_survival!(functional_group::FunctionalGroup, survival_rate::Vector{Float64})::Nothing
-    _apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
+    apply_survival!(functional_group::FunctionalGroup, survival_rate::Vector{Float64})::Nothing
+    apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
+    apply_survival!(functional_groups::Vector{FunctionalGroup}, survival_rate::Union{Matrix{Float64}, SubArray{Float64, 2}})::Nothing
 
 Apply mortality/survival probability to coral densities in blocks.
 """
-function _apply_survival!(
+function apply_survival!(
+    functional_groups::Vector{FunctionalGroup},
+    survival_rate::Union{Matrix{Float64}, SubArray{Float64, 2}}
+)::Nothing
+    apply_survival!.(functional_groups, eachrow(survival_rate))
+    return nothing
+end
+function apply_survival!(
     functional_group::FunctionalGroup,
     survival_rate::Union{Vector{Float64}, SubArray{Float64, 1}}
 )::Nothing
-    _apply_survival!.(functional_group.size_classes, survival_rate[1:end-1])
+    apply_survival!.(functional_group.size_classes, survival_rate[1:end-1])
     functional_group.terminal_class.density *= survival_rate[end]
 
     return nothing
 end
-function _apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
+function apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
     size_class.block_densities.buffer .*= survival_rate
 
     return nothing
@@ -301,7 +318,6 @@ function calculate_new_block!(
 )::Tuple{Float64, Float64, Float64}
     # Check if the lower bound outgrows the upper bound as well
     outgrowing_lb::Bool = block_lb > (next_class.lower_bound - prev_growth_rate)
-
     # Calculate bounds and density of new cover block
     new_lower_bound::Float64 = (
         !outgrowing_lb ? next_class.lower_bound : block_lb + adjusted_growth(
@@ -311,12 +327,13 @@ function calculate_new_block!(
     new_upper_bound::Float64 = block_ub + adjusted_growth(
         block_ub, next_class.lower_bound, prev_growth_rate, next_growth_rate
     )
-    percentage_moving::Float64 = outgrowing_lb ? 1 : (
-        (next_class.lower_bound - (block_lb - prev_growth_rate)) / (block_ub - block_lb)
+
+    proportion_moving::Float64 = outgrowing_lb ? 1 : 1 - (
+        (next_class.lower_bound - (block_lb + prev_growth_rate)) / (block_ub - block_lb)
     )
 
     # New Density = (number of corals * proportion moving)
-    n_corals_moving::Float64 = block_density * (block_ub - block_lb) * percentage_moving
+    n_corals_moving::Float64 = block_density * (block_ub - block_lb) * proportion_moving
     new_density::Float64 = n_corals_moving / (new_upper_bound - new_lower_bound)
 
     return new_lower_bound, new_upper_bound, new_density
@@ -433,7 +450,7 @@ function timestep!(
     growth_rate::Union{Vector{Float64}, SubArray{Float64, 1}},
     survival_rate::Union{Vector{Float64}, SubArray{Float64, 1}}
 )::Nothing
-    _apply_survival!(functional_group, survival_rate)
+    apply_survival!(functional_group, survival_rate)
 
     transfer_and_grow!(
         functional_group.size_classes[end],
@@ -500,4 +517,5 @@ function coral_cover(size_class::SizeClass)::Float64
         )
     end
     return cover
+end
 end
