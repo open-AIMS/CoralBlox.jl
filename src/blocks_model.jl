@@ -51,6 +51,7 @@ interval_lower_bound(size_class::SizeClass)::Float64 = size_class.interval[1]
 interval_upper_bound(cover_block::CoverBlock)::Float64 = cover_block.interval[2]
 interval_upper_bound(size_class::SizeClass)::Float64 = size_class.interval[2]
 Δinterval(interval::NTuple{2,Float64})::Float64 = interval[2] - interval[1]
+Δinterval(cover_block::CoverBlock)::Float64 = Δinterval(interval(cover_block))
 
 """ Diameter Linear Extension [m/year] """
 linear_extension(size_class::SizeClass)::Float64 = size_class.linear_extension
@@ -117,30 +118,58 @@ function new_medium_size_class(
     prev_growth::Float64,
     current_growth::Float64
 )::SizeClass
-    new_cover_blocks_prev = move_prev_blocks(prev_size_class, prev_growth)
+    new_cover_blocks_prev = move_prev_blocks(prev_size_class, prev_growth, current_growth)
     new_cover_blocks_current = move_current_blocks(current_size_class, current_growth)
 
     new_cover_blocks = vcat(new_cover_blocks_prev, new_cover_blocks_current)
     return SizeClass(new_cover_blocks, current_size_class)
 end
 
-function move_prev_blocks(size_class::SizeClass, growth::Float64)::Vector{CoverBlock}
+function move_prev_blocks(
+    prev_size_class::SizeClass,
+    prev_growth::Float64,
+    current_growth::Float64
+)::Vector{CoverBlock}
     # Select blocks that are going to next SizeClass
-    new_upper_bounds = interval_upper_bound.(size_class.cover_blocks) .+ growth
-    sc_upper_bound = size_class.interval[2]
-    blocks_within_range = new_upper_bounds .> sc_upper_bound
+    projected_block_ub = interval_upper_bound.(prev_size_class.cover_blocks) .+ prev_growth
+    sizeclass_ub = prev_size_class.interval[2]
+    blocks_within_range = projected_block_ub .> sizeclass_ub
 
     new_blocks = Array{CoverBlock}(undef, sum(blocks_within_range))
-    for (idx, cover_block) in enumerate(size_class.cover_blocks[blocks_within_range])
-        grown_lb = interval(cover_block)[1] + growth
-        new_lower_bound = grown_lb < sc_upper_bound ? sc_upper_bound : grown_lb
-        new_upper_bound = interval(cover_block)[2] + growth
-        new_interval = (new_lower_bound, new_upper_bound)
-        new_diameter_density = cover_block.diameter_density * size_class.survival_rate
+    for (idx, cover_block) in enumerate(prev_size_class.cover_blocks[blocks_within_range])
+        block_lb, block_ub = interval(cover_block)
+
+        block_new_lb = if block_lb + prev_growth < sizeclass_ub
+            sizeclass_ub
+        else
+            block_lb + mixed_growth(prev_growth, current_growth, block_lb, sizeclass_ub)
+        end
+        block_new_ub = block_ub + mixed_growth(prev_growth, current_growth, block_ub, sizeclass_ub)
+
+        # new_upper_bound = interval(cover_block)[2] + prev_growth
+        new_interval = (block_new_lb, block_new_ub)
+        survival_density = cover_block.diameter_density * prev_size_class.survival_rate
+        Δinterval_new = block_new_ub - block_new_lb
+        new_diameter_density = survival_density * Δinterval(cover_block) / Δinterval_new
         new_blocks[idx] = CoverBlock(new_diameter_density, new_interval)
     end
 
     return new_blocks
+end
+
+"""
+    mixed_growth(prev_growth::Float64, current_growth::Float64, prev_block_bound::Float64, prev_sc_upper_bound::Float64)
+
+Accounts for the growth when the block is crossing the bounds between two size classes.
+"""
+function mixed_growth(
+    prev_growth::Float64,
+    current_growth::Float64,
+    prev_block_bound::Float64,
+    prev_sc_upper_bound::Float64
+)
+    growth_ratio::Float64 = (current_growth / prev_growth)
+    return current_growth + (prev_sc_upper_bound - prev_block_bound) * (1.0 - growth_ratio)
 end
 
 function move_current_blocks(size_class::SizeClass, growth::Float64)::Vector{CoverBlock}
