@@ -1,4 +1,4 @@
-module circuler
+module circular
 
 using DataStructures: CircularBuffer
 
@@ -47,7 +47,14 @@ function reallocate!(cb::CircularBuffer, n::Integer)
     return cb
 end
 
-function reuse_buffers!(functional_group::FunctionalGroup, cover::Vector{Float64})::FunctionalGroup
+function reuse_buffers!(
+    functional_groups::Vector{FunctionalGroup},
+    cover::Union{Matrix{Float64}, SubArray{Float64, 2}}
+)::Vector{FunctionalGroup}
+    reuse_buffers!.(functional_groups, eachrow(cover))
+    return functional_groups
+end
+function reuse_buffers!(functional_group::FunctionalGroup, cover::AbstractVector{Float64})::FunctionalGroup
     reuse_buffers!.(functional_group.size_classes, cover[1:end-1])
 
     area_factor::Float64 = average_area(functional_group.terminal_class)
@@ -113,9 +120,9 @@ function CreateTerminalClass(
 end
 
 function FunctionalGroup(
-    lower_bounds::Vector{Float64},
-    upper_bounds::Vector{Float64},
-    cover::Vector{Float64}
+    lower_bounds::AbstractVector{Float64},
+    upper_bounds::AbstractVector{Float64},
+    cover::AbstractVector{Float64}
 )::FunctionalGroup
     size_classes::Vector{SizeClass} = SizeClass.(lower_bounds[1:end-1], upper_bounds[1:end-1], cover[1:end-1])
     terminal_class::TerminalClass = CreateTerminalClass(lower_bounds[end], upper_bounds[end], cover[end])
@@ -127,21 +134,29 @@ function FunctionalGroup(
 end
 
 """
-    _apply_survival!(functional_group::FunctionalGroup, survival_rate::Vector{Float64})::Nothing
-    _apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
+    apply_survival!(functional_group::FunctionalGroup, survival_rate::Vector{Float64})::Nothing
+    apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
+    apply_survival!(functional_groups::Vector{FunctionalGroup}, survival_rate::Union{Matrix{Float64}, SubArray{Float64, 2}})::Nothing
 
 Apply mortality/survival probability to coral densities in blocks.
 """
-function _apply_survival!(
+function apply_survival!(
+    functional_groups::Vector{FunctionalGroup},
+    survival_rate::Union{Matrix{Float64}, SubArray{Float64, 2}}
+)::Nothing
+    apply_survival!.(functional_groups, eachrow(survival_rate))
+    return nothing
+end
+function apply_survival!(
     functional_group::FunctionalGroup,
     survival_rate::Union{Vector{Float64}, SubArray{Float64, 1}}
 )::Nothing
-    _apply_survival!.(functional_group.size_classes, survival_rate[1:end-1])
+    apply_survival!.(functional_group.size_classes, survival_rate[1:end-1])
     functional_group.terminal_class.density *= survival_rate[end]
 
     return nothing
 end
-function _apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
+function apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
     size_class.block_densities.buffer .*= survival_rate
 
     return nothing
@@ -435,7 +450,7 @@ function timestep!(
     growth_rate::Union{Vector{Float64}, SubArray{Float64, 1}},
     survival_rate::Union{Vector{Float64}, SubArray{Float64, 1}}
 )::Nothing
-    _apply_survival!(functional_group, survival_rate)
+    apply_survival!(functional_group, survival_rate)
 
     transfer_and_grow!(
         functional_group.size_classes[end],

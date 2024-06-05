@@ -1,7 +1,12 @@
-using Core: Argument
 using Test
-
-include("../src/new_implementation.jl")
+using DynamicCoralCoverModel.circular:
+    SizeClass,
+    adjusted_growth,
+    calculate_new_block!,
+    remove_outgrown!,
+    _apply_internal_growth!,
+    transfer_blocks!,
+    add_block!
 
 @testset "adjusted_growth" begin
 
