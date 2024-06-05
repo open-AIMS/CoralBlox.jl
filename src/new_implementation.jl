@@ -7,6 +7,9 @@ struct SizeClass
     lower_bound::Float64
     upper_bound::Float64
 
+    # Buffer should be in the shape of [attrs ⋅ n_blocks].
+    # This structure will be more memory efficient for large number of blocks as
+    # Julia is column-major.
     block_attrs::CircularArrayBuffer{Float64}
 end
 
