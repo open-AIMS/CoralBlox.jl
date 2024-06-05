@@ -1,4 +1,4 @@
-@kwdef struct CoralSpec
+@kwdef mutable struct CoralSpec
     f_groups = [
         "Tabular Acropora",
         "Corymbose Acropora",

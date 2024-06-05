@@ -1,9 +1,8 @@
 module blocks_model
 
 include("coral_spec.jl")
-
 # TODO Use only Tuples? Maybe have an intermediate struct called CoralBlock or smth?
-struct CoverBlock
+mutable struct CoverBlock
     diameter_density::Float64       # Number of corals / m
     interval::NTuple{2,Float64}
 end
@@ -41,8 +40,6 @@ function SizeClass(
     return SizeClass(cover_blocks, size_class.interval, size_class.size_class, size_class.linear_extension, size_class.survival_rate)
 end
 
-include("plot_inspec.jl")
-
 """ Area factor for a corals with diameter between bin_i and bin_f """
 area_factor(bin_i, bin_f) = (π / 12) * (bin_f^3 - bin_i^3)
 
@@ -54,6 +51,7 @@ interval_lower_bound(size_class::SizeClass)::Float64 = size_class.interval[1]
 interval_upper_bound(cover_block::CoverBlock)::Float64 = cover_block.interval[2]
 interval_upper_bound(size_class::SizeClass)::Float64 = size_class.interval[2]
 Δinterval(interval::NTuple{2,Float64})::Float64 = interval[2] - interval[1]
+Δinterval(cover_block::CoverBlock)::Float64 = Δinterval(interval(cover_block))
 
 """ Diameter Linear Extension [m/year] """
 linear_extension(size_class::SizeClass)::Float64 = size_class.linear_extension
@@ -80,42 +78,38 @@ function initial_cover(coral_spec)
     return coral_spec.k_max .* coral_spec.initial_cover_fracs
 end
 
-""" Run the model :) """
-function run_model(n_timesteps=100)
-    coral_spec = CoralSpec()
-
-    n_species::Int64, n_bins::Int64 = size(coral_spec.linear_extension)
-    cover::Array{Float64} = zeros(Float64, n_timesteps, n_species, n_bins)
-    cover[1, :, :] = initial_cover(coral_spec)
-
-    cover_blocks::Matrix{CoverBlock} = CoverBlock.(
-        cover[1, :, :],
-        coral_spec.bins[:, 1:end-1],
-        coral_spec.bins[:, 2:end]
-    )
-    size_classes::Matrix{SizeClass} = SizeClass.(
-        cover_blocks,
-        repeat(1:n_bins, 1, n_species)',
-        coral_spec.linear_extension,
-        coral_spec.survival_rate
-    )
-
-    for t in 2:n_timesteps
-        cover[t, :, :] .= timestep_iteration(
-            t,
-            cover,
-            size_classes,
-            coral_spec,
-        )
-    end
-
-    return cover
-end
-
 """ Fraction of k_max available """
 function _k_area(cover::Array{Float64}, k_max::Float64)::Float64
-    sum(cover) > k_max ? error("k-area should not be greater than k_max") : nothing
-    return 1 - (sum(cover) / k_max)
+    sum_cov::Float64 = sum(cover)
+    # sum_cov > k_max ? error("k-area should not be greater than k_max. k-area: $(sum_cov), k-max: $(k_max)") : nothing
+
+    # Consider values close to 0.0 (e.g., 1e-214) as being 0.0
+    # https://github.com/JuliaLang/julia/issues/23376#issuecomment-324649815
+    if ((sum_cov - k_max) + 1.0) ≈ 1.0
+        return 0.0
+    elseif (sum_cov - k_max) > 0.0
+        @warn "k-area should not be greater than k_max. k-area: $(sum_cov), k-max: $(k_max)"
+        return 0.0
+    end
+
+    return 1.0 - (sum(cover) / k_max)
+end
+
+function new_small_size_class(
+    current_size_class::SizeClass,
+    recruits::Float64,
+    current_growth::Float64
+)::SizeClass
+    new_cover_blocks = move_current_blocks(current_size_class, current_growth)
+    new_cover_blocks = append!([CoverBlock(recruits, current_size_class.interval[1], current_size_class.interval[2])], new_cover_blocks)
+    return SizeClass(new_cover_blocks, current_size_class)
+end
+function new_small_size_class(
+    current_size_class::SizeClass,
+    current_growth::Float64
+)::SizeClass
+    new_cover_blocks = move_current_blocks(current_size_class, current_growth)
+    return SizeClass(new_cover_blocks, current_size_class)
 end
 
 function new_medium_size_class(
@@ -124,30 +118,58 @@ function new_medium_size_class(
     prev_growth::Float64,
     current_growth::Float64
 )::SizeClass
-    new_cover_blocks_prev = move_prev_blocks(prev_size_class, prev_growth)
+    new_cover_blocks_prev = move_prev_blocks(prev_size_class, prev_growth, current_growth)
     new_cover_blocks_current = move_current_blocks(current_size_class, current_growth)
 
     new_cover_blocks = vcat(new_cover_blocks_prev, new_cover_blocks_current)
     return SizeClass(new_cover_blocks, current_size_class)
 end
 
-function move_prev_blocks(size_class::SizeClass, growth::Float64)::Vector{CoverBlock}
+function move_prev_blocks(
+    prev_size_class::SizeClass,
+    prev_growth::Float64,
+    current_growth::Float64
+)::Vector{CoverBlock}
     # Select blocks that are going to next SizeClass
-    new_upper_bounds = interval_upper_bound.(size_class.cover_blocks) .+ growth
-    sc_upper_bound = size_class.interval[2]
-    blocks_within_range = new_upper_bounds .> sc_upper_bound
+    projected_block_ub = interval_upper_bound.(prev_size_class.cover_blocks) .+ prev_growth
+    sizeclass_ub = prev_size_class.interval[2]
+    blocks_within_range = projected_block_ub .> sizeclass_ub
 
     new_blocks = Array{CoverBlock}(undef, sum(blocks_within_range))
-    for (idx, cover_block) in enumerate(size_class.cover_blocks[blocks_within_range])
-        grown_lb = interval(cover_block)[1] + growth
-        new_lower_bound = grown_lb < sc_upper_bound ? sc_upper_bound : grown_lb
-        new_upper_bound = interval(cover_block)[2] + growth
-        new_interval = (new_lower_bound, new_upper_bound)
-        new_diameter_density = cover_block.diameter_density * size_class.survival_rate
+    for (idx, cover_block) in enumerate(prev_size_class.cover_blocks[blocks_within_range])
+        block_lb, block_ub = interval(cover_block)
+
+        block_new_lb = if block_lb + prev_growth < sizeclass_ub
+            sizeclass_ub
+        else
+            block_lb + mixed_growth(prev_growth, current_growth, block_lb, sizeclass_ub)
+        end
+        block_new_ub = block_ub + mixed_growth(prev_growth, current_growth, block_ub, sizeclass_ub)
+
+        # new_upper_bound = interval(cover_block)[2] + prev_growth
+        new_interval = (block_new_lb, block_new_ub)
+        survival_density = cover_block.diameter_density * prev_size_class.survival_rate
+        Δinterval_new = block_new_ub - block_new_lb
+        new_diameter_density = survival_density * Δinterval(cover_block) / Δinterval_new
         new_blocks[idx] = CoverBlock(new_diameter_density, new_interval)
     end
 
     return new_blocks
+end
+
+"""
+    mixed_growth(prev_growth::Float64, current_growth::Float64, prev_block_bound::Float64, prev_sc_upper_bound::Float64)
+
+Accounts for the growth when the block is crossing the bounds between two size classes.
+"""
+function mixed_growth(
+    prev_growth::Float64,
+    current_growth::Float64,
+    prev_block_bound::Float64,
+    prev_sc_upper_bound::Float64
+)
+    growth_ratio::Float64 = (current_growth / prev_growth)
+    return current_growth + (prev_sc_upper_bound - prev_block_bound) * (1.0 - growth_ratio)
 end
 
 function move_current_blocks(size_class::SizeClass, growth::Float64)::Vector{CoverBlock}
@@ -179,7 +201,10 @@ function new_large_size_class(
     n_new_corals::Float64 = 0.0
     for cover_block in prev_size_class.cover_blocks[blocks_within_range]
         new_diameter_density = cover_block.diameter_density * prev_size_class.survival_rate
-        n_new_corals += new_diameter_density * prev_growth
+        interval_width = cover_block.interval[2] + prev_growth - max(
+            cover_block.interval[1] + prev_growth, current_size_class.interval[1]
+        )
+        n_new_corals += new_diameter_density * interval_width
     end
 
     current_Δinterval = current_size_class.interval[2] - current_size_class.interval[1]
@@ -202,41 +227,61 @@ function cover_block_virtual_cover(cover_block, linear_extension)
     return cover_block.diameter_density * Δinterval(cover_block.interval) * linear_extension
 end
 
+function apply_changes!(size_class::Matrix{SizeClass}, reduction_density::SubArray{<:Union{Float32,Float64},2})::Nothing
+    for i in axes(size_class, 1), j in axes(size_class, 2)
+        apply_changes!.(size_class[i, j].cover_blocks, reduction_density[i, j])
+    end
+    return nothing
+end
+function apply_changes!(cover_block::CoverBlock, reduction_density::Union{Float32,Float64})::Nothing
+    cover_block.diameter_density *= reduction_density
+
+    return nothing
+end
+
 """
-- `cover` : array with dimensions timesteps X species X size class representing coral cover
-- `t` : Time step of that iteration
-- `bins` :
-- `linear_extension` :
-- `base_mortality_rate` :
+    timestep(cover::Matrix{Float64}, recruits::Vector{Float64}, size_classes::Matrix{SizeClass}, max_available_area::Float64, timestep::Int, plot::Bool=false)
+
+Run one timestep iteration.
+
+# Arguments
+- `cover` : Coral cover with shape [groups ⋅ sizes]
+- `recruits` : Recruits cover for each group
+- `size_classes` : SizeClass instances with shape [groups ⋅ sizes]
+- `max_available_area` : Maximum available area for corals to live
+- `timestep` : Iteration timestep
+- `plot` : If true, plot size classes
 """
-function timestep_iteration(
-    t::Int64,
-    cover::Array{Float64},
+function timestep(
+    cover::Matrix{Float64},
+    recruits::Vector{Float64},
     size_classes::Matrix{SizeClass},
-    coral_spec::CoralSpec,
+    max_available_area::Float64,
+    timestep::Int,
+    plot::Bool=false
 )
-    #plot_size_class(size_classes, t - 1, coral_spec)
-    k_area::Float64 = _k_area(cover[t-1, :, :], coral_spec.k_max)
-    #_virtual_cover = virtual_cover(size_classes, coral_spec)
-    settlers_cover::Vector{Float64} = coral_spec.settler_fracs .* coral_spec.k_max .* log(1 + k_area)
+    if plot
+        ext = Base.get_extension(parentmodule(blocks_model), :DynamicCoralPlotExt)
+        if !isnothing(ext)
+            parentmodule(blocks_model).Plot.plot_size_class(size_classes, timestep)
+        end
+    end
 
-    # Actual coral diameter growth [m/year]
-    growth::Matrix{Float64} = linear_extension.(size_classes) .* log(1 + k_area)#k_area
+    # Coral diameter growth
+    k_area::Float64 = _k_area(cover, max_available_area)
+    growth::Matrix{Float64} = linear_extension.(size_classes) .* log(1 + k_area)
 
-    _, n_species, n_bins = size(cover)
+    _, n_bins = size(cover)
 
     small = 1
     medium = collect(2:(n_bins-1))
     large = n_bins
 
     # Create new_size_classes
-    # Small -> settlers
-    small_cover_blocks = CoverBlock.(settlers_cover, interval_lower_bound.(size_classes[:, 1]), interval_upper_bound.(size_classes[:, 1]))
-    small_size_classes = SizeClass.(
-        small_cover_blocks,
-        fill(small, n_species),
-        linear_extension.(size_classes[:, 1]),
-        survival_rate.(size_classes[:, 1])
+    small_size_classes = new_small_size_class.(
+        size_classes[:, small],
+        recruits,
+        growth[:, small],
     )
 
     medium_size_classes = new_medium_size_class.(
@@ -256,8 +301,5 @@ function timestep_iteration(
     size_classes[:, medium] = medium_size_classes
     size_classes[:, large] = large_size_classes
     return size_class_cover.(size_classes)
-
-    #@info "Cover after iteration $t-1: $(cover[t-1,:,:])"
-    #@info "K-area $k"
 end
 end
