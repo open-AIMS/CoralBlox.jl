@@ -1,5 +1,6 @@
 module circular
 
+using LinearAlgebra.BLAS: scal!
 using DataStructures: CircularBuffer
 
 struct SizeClass
@@ -157,7 +158,8 @@ function apply_survival!(
     return nothing
 end
 function apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
-    size_class.block_densities.buffer .*= survival_rate
+    scal!(survival_rate, size_class.block_densities.buffer)
+    # size_class.block_densities.buffer .*= survival_rate
 
     return nothing
 end
@@ -178,13 +180,15 @@ end
 function _apply_internal_growth!(size_class::SizeClass, growth_rate::Float64)::Nothing
     # Apply growth directly to underlying buffer
     size_class.block_lower_bounds.buffer .+= growth_rate
+    size_class.block_upper_bounds.buffer .+= growth_rate
 
     # Grow upper bounds and clamp bounds by upper bound of size class
     class_upper_bound::Float64 = size_class.upper_bound
-    for (block_idx, ub) in enumerate(size_class.block_upper_bounds)
-        size_class.block_upper_bounds[block_idx] = min(
-            class_upper_bound, ub + growth_rate
-        )
+    for block_idx in 1:n_blocks(size_class)
+        if size_class.block_upper_bounds[block_idx] < class_upper_bound
+            break
+        end
+        size_class.block_upper_bounds[block_idx] = class_upper_bound
     end
 
     return nothing
@@ -290,9 +294,9 @@ function add_block!(
     # Reallocate excess memory if buffers are full
     if size_class.block_densities.capacity == size_class.block_densities.length
         current_capacity::Int64 = size_class.block_densities.capacity
-        reallocate!(size_class.block_lower_bounds, current_capacity + 10)
-        reallocate!(size_class.block_upper_bounds, current_capacity + 10)
-        reallocate!(size_class.block_densities, current_capacity + 10)
+        reallocate!(size_class.block_lower_bounds, current_capacity + 100)
+        reallocate!(size_class.block_upper_bounds, current_capacity + 100)
+        reallocate!(size_class.block_densities, current_capacity + 100)
     end
 
     push!(size_class.block_lower_bounds, lower_bound)
@@ -353,11 +357,13 @@ function transfer_blocks!(
 )::Nothing
     # Blocks that exceed this bound will move to the next size class
     moving_bound::Float64 = prev_class.upper_bound - prev_growth_rate
-
+    new_lower_bound::Float64 = 0.0
+    new_upper_bound::Float64 = 0.0
+    new_density::Float64 = 0.0
     for block_idx in 1:n_blocks(prev_class)
         # Skip blocks that are not migrating
         if prev_class.block_upper_bounds[block_idx] <= moving_bound
-            continue
+            break
         end
         new_lower_bound, new_upper_bound, new_density = calculate_new_block!(
             prev_class.block_lower_bounds[block_idx],
