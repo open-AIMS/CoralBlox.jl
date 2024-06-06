@@ -293,19 +293,20 @@ function add_block!(
 end
 
 """
-    calculate_new_block!(block_lb::Float64, block_ub::Float64, block_density::Float64, next_class::SizeClass, prev_growth_rate::Float64, next_growth_rate::Float64)::Nothing
+    calculate_new_block!(curr_lb::Float64, curr_ub::Float64, curr_density::Float64, next_class::SizeClass, prev_growth_rate::Float64, next_growth_rate::Float64)::Nothing
 
 Calculate the density, lower bound and upper bound of a block transfitioning from a smaller
 size class to a larger size class.
 """
 function calculate_new_block!(
-    curr_attrs::SubArray{Float64},
+    curr_lb::Float64,
+    curr_ub::Float64,
+    curr_density::Float64,
     next_class::SizeClass,
     prev_growth_rate::Float64,
     next_growth_rate::Float64
 )::Tuple{Float64, Float64, Float64}
     # Check if the lower bound outgrows the upper bound as well
-    curr_lb, curr_ub, curr_density = curr_attrs
     outgrowing_lb::Bool = curr_lb > (next_class.lower_bound - prev_growth_rate)
     # Calculate bounds and density of new cover block
     new_lower_bound::Float64 = (
@@ -343,19 +344,29 @@ function transfer_blocks!(
     # Blocks that exceed this bound will move to the next size class
     moving_bound::Float64 = prev_class.upper_bound - prev_growth_rate
 
+    tmp_lb::Float64 = 0.0
+    tmp_ub::Float64 = 0.0
+    tmp_density::Float64 = 0.0
     for block_idx in 1:n_blocks(prev_class)
+        tmp_ub = block_upper_bound(prev_class, block_idx),
+
         # Skip blocks that are not migrating
-        if block_upper_bound(prev_class, block_idx) <= moving_bound
+        if tmp_ub <= moving_bound
             continue
         end
 
-        new_lower_bound, new_upper_bound, new_density = calculate_new_block!(
-            @view(prev_class.block_attrs[:, block_idx]),
+        tmp_lb = block_lower_bound(prev_class, block_idx),
+        tmp_density = block_density(prev_class, block_idx),
+
+        tmp_lb, tmp_ub, tmp_density = calculate_new_block!(
+            tmp_lb,
+            tmp_ub,
+            tmp_density,
             next_class,
             prev_growth_rate,
             next_growth_rate
         )
-        add_block!(next_class, new_lower_bound, new_upper_bound, new_density)
+        add_block!(next_class, tmp_lb, tmp_ub, tmp_density)
     end
 
     return nothing
