@@ -96,7 +96,7 @@ function SizeClass(
 
     block_attrs::CircularArrayBuffer{Float64} = CircularArrayBuffer{Float64}(3, capacity)
 
-    push!(block_attrs, (density, lower_bound, upper_bound))
+    push!(block_attrs, (lower_bound, upper_bound, density))
 
     return SizeClass(
         lower_bound,
@@ -348,15 +348,14 @@ function transfer_blocks!(
     tmp_ub::Float64 = 0.0
     tmp_density::Float64 = 0.0
     for block_idx in 1:n_blocks(prev_class)
-        tmp_ub = block_upper_bound(prev_class, block_idx),
-
+        tmp_ub = block_upper_bound(prev_class, block_idx)
         # Skip blocks that are not migrating
         if tmp_ub <= moving_bound
             continue
         end
 
-        tmp_lb = block_lower_bound(prev_class, block_idx),
-        tmp_density = block_density(prev_class, block_idx),
+        tmp_lb = block_lower_bound(prev_class, block_idx)
+        tmp_density = block_density(prev_class, block_idx)
 
         tmp_lb, tmp_ub, tmp_density = calculate_new_block!(
             tmp_lb,
