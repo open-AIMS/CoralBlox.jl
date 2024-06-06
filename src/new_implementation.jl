@@ -182,13 +182,15 @@ end
 function _apply_internal_growth!(size_class::SizeClass, growth_rate::Float64)::Nothing
     # Apply growth directly to underlying buffer
     size_class.block_attrs[1, :] .+= growth_rate
+    size_class.block_attrs[2, :] .+= growth_rate
 
     # Grow upper bounds and clamp bounds by upper bound of size class
     class_upper_bound::Float64 = size_class.upper_bound
-    for (block_idx, ub) in enumerate(block_upper_bounds(size_class))
-        size_class.block_attrs[2, block_idx] = min(
-            class_upper_bound, ub + growth_rate
-        )
+    for block_idx in 1:n_blocks(size_class)
+        if block_upper_bound(size_class, block_idx) <= class_upper_bound
+            break
+        end
+        size_class.block_attrs[2, block_idx] = class_upper_bound
     end
 
     return nothing
@@ -343,7 +345,6 @@ function transfer_blocks!(
 )::Nothing
     # Blocks that exceed this bound will move to the next size class
     moving_bound::Float64 = prev_class.upper_bound - prev_growth_rate
-
     tmp_lb::Float64 = 0.0
     tmp_ub::Float64 = 0.0
     tmp_density::Float64 = 0.0
@@ -351,7 +352,7 @@ function transfer_blocks!(
         tmp_ub = block_upper_bound(prev_class, block_idx)
         # Skip blocks that are not migrating
         if tmp_ub <= moving_bound
-            continue
+            break
         end
 
         tmp_lb = block_lower_bound(prev_class, block_idx)
