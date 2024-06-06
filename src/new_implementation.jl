@@ -3,7 +3,7 @@ module circular
 # using DataStructures: CircularBuffer
 using CircularArrayBuffers
 
-struct SizeClass
+mutable struct SizeClass
     lower_bound::Float64
     upper_bound::Float64
 
@@ -11,6 +11,10 @@ struct SizeClass
     # This structure will be more memory efficient for large number of blocks as
     # Julia is column-major.
     block_attrs::CircularArrayBuffer{Float64}
+
+    tmp_lb::Float64
+    tmp_ub::Float64
+    tmp_density::Float64
 end
 
 block_lower_bound(sc::SizeClass, block_id::Int64)::Float64 = sc.block_attrs[1, block_id]
@@ -101,7 +105,10 @@ function SizeClass(
     return SizeClass(
         lower_bound,
         upper_bound,
-        block_attrs
+        block_attrs,
+        0.0,
+        0.0,
+        0.0
     )
 end
 
@@ -345,28 +352,27 @@ function transfer_blocks!(
 )::Nothing
     # Blocks that exceed this bound will move to the next size class
     moving_bound::Float64 = prev_class.upper_bound - prev_growth_rate
-    tmp_lb::Float64 = 0.0
-    tmp_ub::Float64 = 0.0
-    tmp_density::Float64 = 0.0
+
     for block_idx in 1:n_blocks(prev_class)
-        tmp_ub = block_upper_bound(prev_class, block_idx)
+        prev_class.tmp_ub = block_upper_bound(prev_class, block_idx)
+
         # Skip blocks that are not migrating
-        if tmp_ub <= moving_bound
+        if prev_class.tmp_ub <= moving_bound
             break
         end
 
-        tmp_lb = block_lower_bound(prev_class, block_idx)
-        tmp_density = block_density(prev_class, block_idx)
+        prev_class.tmp_lb = block_lower_bound(prev_class, block_idx)
+        prev_class.tmp_density = block_density(prev_class, block_idx)
 
-        tmp_lb, tmp_ub, tmp_density = calculate_new_block!(
-            tmp_lb,
-            tmp_ub,
-            tmp_density,
+        prev_class.tmp_lb, prev_class.tmp_ub, prev_class.tmp_density = calculate_new_block!(
+            prev_class.tmp_lb,
+            prev_class.tmp_ub,
+            prev_class.tmp_density,
             next_class,
             prev_growth_rate,
             next_growth_rate
         )
-        add_block!(next_class, tmp_lb, tmp_ub, tmp_density)
+        add_block!(next_class, prev_class.tmp_lb, prev_class.tmp_ub, prev_class.tmp_density)
     end
 
     return nothing
