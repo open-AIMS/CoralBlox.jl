@@ -12,9 +12,7 @@ mutable struct SizeClass
     # Julia is column-major.
     block_attrs::CircularArrayBuffer{Float64}
 
-    tmp_lb::Float64
-    tmp_ub::Float64
-    tmp_density::Float64
+    tmps::Vector{Float64}
 end
 
 block_lower_bound(sc::SizeClass, block_id::Int64)::Float64 = sc.block_attrs[1, block_id]
@@ -101,14 +99,12 @@ function SizeClass(
     block_attrs::CircularArrayBuffer{Float64} = CircularArrayBuffer{Float64}(3, capacity)
 
     push!(block_attrs, (lower_bound, upper_bound, density))
-
+    temporaries::Vector{Float64} = zeros(3)
     return SizeClass(
         lower_bound,
         upper_bound,
         block_attrs,
-        0.0,
-        0.0,
-        0.0
+        temporaries
     )
 end
 
@@ -283,6 +279,16 @@ end
 Add new cover block to the given size class. Resize the size class if the buffer is already
 full.
 """
+function add_block!(size_class::SizeClass, new_block::Vector{Float64})::Nothing
+
+    if capacity(size_class.block_attrs) == n_blocks(size_class)
+        reallocate!(size_class.block_attrs, capacity(size_class.block_attrs) + 100)
+    end
+
+    push!(size_class.block_attrs, new_block)
+
+    return nothing
+end
 function add_block!(size_class::SizeClass, density::Float64)::Nothing
     add_block!(size_class, size_class.lower_bound, size_class.upper_bound, density)
 
@@ -302,37 +308,35 @@ function add_block!(
 end
 
 """
-    calculate_new_block!(curr_lb::Float64, curr_ub::Float64, curr_density::Float64, next_class::SizeClass, prev_growth_rate::Float64, next_growth_rate::Float64)::Nothing
+calculate_new_block!(curr_block::Vector{Float64}, next_class::SizeClass, prev_growth_rate::Float64, next_growth_rate::Float64)::Nothing
 
 Calculate the density, lower bound and upper bound of a block transfitioning from a smaller
 size class to a larger size class.
 """
 function calculate_new_block!(
-    curr_lb::Float64,
-    curr_ub::Float64,
-    curr_density::Float64,
+    curr_block::Vector{Float64},
     next_class::SizeClass,
     prev_growth_rate::Float64,
     next_growth_rate::Float64
 )::Tuple{Float64, Float64, Float64}
     # Check if the lower bound outgrows the upper bound as well
-    outgrowing_lb::Bool = curr_lb > (next_class.lower_bound - prev_growth_rate)
+    outgrowing_lb::Bool = curr_block[1] > (next_class.lower_bound - prev_growth_rate)
     # Calculate bounds and density of new cover block
     new_lower_bound::Float64 = (
-        !outgrowing_lb ? next_class.lower_bound : curr_lb + adjusted_growth(
-            curr_lb, next_class.lower_bound, prev_growth_rate, next_growth_rate
+        !outgrowing_lb ? next_class.lower_bound : curr_block[1] + adjusted_growth(
+            curr_block[1], next_class.lower_bound, prev_growth_rate, next_growth_rate
         )
     )
-    new_upper_bound::Float64 = curr_ub + adjusted_growth(
-        curr_ub, next_class.lower_bound, prev_growth_rate, next_growth_rate
+    new_upper_bound::Float64 = curr_block[2] + adjusted_growth(
+        curr_block[2], next_class.lower_bound, prev_growth_rate, next_growth_rate
     )
 
     proportion_moving::Float64 = outgrowing_lb ? 1.0 : 1.0 - (
-        (next_class.lower_bound - (curr_lb + prev_growth_rate)) / (curr_ub - curr_lb)
+        (next_class.lower_bound - (curr_block[1] + prev_growth_rate)) / (curr_block[2] - curr_block[1])
     )
 
     # New Density = (number of corals * proportion moving)
-    n_corals_moving::Float64 = curr_density * (curr_ub - curr_lb) * proportion_moving
+    n_corals_moving::Float64 = curr_block[3] * (curr_block[2] - curr_block[1]) * proportion_moving
     new_density::Float64 = n_corals_moving / (new_upper_bound - new_lower_bound)
 
     return new_lower_bound, new_upper_bound, new_density
@@ -354,25 +358,23 @@ function transfer_blocks!(
     moving_bound::Float64 = prev_class.upper_bound - prev_growth_rate
 
     for block_idx in 1:n_blocks(prev_class)
-        prev_class.tmp_ub = block_upper_bound(prev_class, block_idx)
+        prev_class.tmps[2] = block_upper_bound(prev_class, block_idx)
 
         # Skip blocks that are not migrating
-        if prev_class.tmp_ub <= moving_bound
+        if prev_class.tmps[2] <= moving_bound
             break
         end
 
-        prev_class.tmp_lb = block_lower_bound(prev_class, block_idx)
-        prev_class.tmp_density = block_density(prev_class, block_idx)
+        prev_class.tmps[1] = block_lower_bound(prev_class, block_idx)
+        prev_class.tmps[3] = block_density(prev_class, block_idx)
 
-        prev_class.tmp_lb, prev_class.tmp_ub, prev_class.tmp_density = calculate_new_block!(
-            prev_class.tmp_lb,
-            prev_class.tmp_ub,
-            prev_class.tmp_density,
+        prev_class.tmps[1], prev_class.tmps[2], prev_class.tmps[3] = calculate_new_block!(
+            prev_class.tmps,
             next_class,
             prev_growth_rate,
             next_growth_rate
         )
-        add_block!(next_class, prev_class.tmp_lb, prev_class.tmp_ub, prev_class.tmp_density)
+        add_block!(next_class, prev_class.tmps)
     end
 
     return nothing
