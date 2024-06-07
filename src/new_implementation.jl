@@ -162,8 +162,6 @@ function reuse_buffers!(size_class::SizeClass, cover::Float64)::Nothing
     push!(size_class.block_upper_bounds, size_class.upper_bound)
     push!(size_class.block_densities, density)
 
-    Main.@infiltrate any(size_class.block_lower_bounds .> 1000)
-
     return nothing
 end
 
