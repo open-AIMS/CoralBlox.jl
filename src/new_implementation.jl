@@ -1,6 +1,5 @@
 module circular
 
-using LinearAlgebra.BLAS: scal!
 using DataStructures: CircularBuffer
 
 struct SizeClass
@@ -162,8 +161,7 @@ function apply_survival!(
     return nothing
 end
 function apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
-    scal!(survival_rate, size_class.block_densities.buffer)
-    # size_class.block_densities.buffer .*= survival_rate
+    size_class.block_densities.buffer .*= survival_rate
 
     return nothing
 end
