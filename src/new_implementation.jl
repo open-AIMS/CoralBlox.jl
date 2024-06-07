@@ -1,14 +1,15 @@
 module circular
 
+using CircularArrayBuffers
 using DataStructures: CircularBuffer
 
 struct SizeClass
     lower_bound::Float64
     upper_bound::Float64
 
-    block_densities::CircularBuffer{Float64}
-    block_lower_bounds::CircularBuffer{Float64}
-    block_upper_bounds::CircularBuffer{Float64}
+    block_densities::CircularVectorBuffer{Float64, SubArray{Float64, 1}}
+    block_lower_bounds::CircularVectorBuffer{Float64, SubArray{Float64, 1}}
+    block_upper_bounds::CircularVectorBuffer{Float64, SubArray{Float64, 1}}
 
     cache::Vector{Float64}
 end
@@ -48,6 +49,33 @@ function reallocate!(cb::CircularBuffer, n::Integer)
     end
     return cb
 end
+function reallocate!(size_class::SizeClass, additional_size::Integer)::Nothing
+    current_capacity::Int64 = length(size_class.block_densities.buffer)
+    new_buffer::Vector{Float64} = Vector{Float64}(
+        undef, 3 * (current_capacity + additional_size)
+    )
+    new_capacity::Int64 = current_capacity + additional_size
+
+    for i in 1:current_capacity
+        new_buffer[i] = size_class.block_lower_bounds[i]
+    end
+    for i in 1:current_capacity
+        new_buffer[new_capacity + i] = size_class.block_lower_bounds[i]
+    end
+    for i in 1:current_capacity
+        new_buffer[2 * new_capacity + i] = size_class.block_densities[i]
+    end
+
+    size_class.block_lower_bounds.buffer = @view new_buffer[1:new_capacity]
+    size_class.block_upper_bounds.buffer = @view new_buffer[new_capacity+1:2 * new_capacity]
+    size_class.block_densities.buffer = @view new_buffer[2*new_capacity+1:end]
+
+    size_class.block_lower_bounds.first = 1
+    size_class.block_upper_bounds.first = 1
+    size_class.block_densities.first = 1
+
+    return nothing
+end
 
 function reuse_buffers!(
     functional_groups::Vector{FunctionalGroup},
@@ -80,6 +108,17 @@ function reuse_buffers!(size_class::SizeClass, cover::Float64)::Nothing
     return nothing
 end
 
+function EmptyCircularVectorBuffer(
+    buffer::SubArray{Float64, 1}
+)::CircularVectorBuffer{Float64, SubArray{Float64, 1}}
+    return CircularVectorBuffer{Float64, SubArray{Float64, 1}}(
+        buffer,
+        1,
+        0,
+        1
+    )
+end
+
 function SizeClass(
     lower_bound::Float64,
     upper_bound::Float64,
@@ -89,9 +128,17 @@ function SizeClass(
     area_factor::Float64 = π / 12 * (upper_bound^3 - lower_bound^3)
     density::Float64 = cover / area_factor
 
-    block_lower_bounds::CircularBuffer{Float64} = CircularBuffer{Float64}(capacity)
-    block_upper_bounds::CircularBuffer{Float64} = CircularBuffer{Float64}(capacity)
-    block_densities::CircularBuffer{Float64} = CircularBuffer{Float64}(capacity)
+    underlying_buffer::Vector{Float64} = Vector{Float64}(undef, 3 * capacity)
+
+    block_lower_bounds::CircularVectorBuffer{Float64} = EmptyCircularVectorBuffer(
+        @view underlying_buffer[1:capacity]
+    )
+    block_upper_bounds::CircularVectorBuffer{Float64} = EmptyCircularVectorBuffer(
+        @view underlying_buffer[capacity+1:2*capacity]
+    )
+    block_densities::CircularVectorBuffer{Float64} = EmptyCircularVectorBuffer(
+        @view underlying_buffer[2*capacity + 1:end]
+    )
 
     push!(block_lower_bounds, lower_bound)
     push!(block_upper_bounds, upper_bound)
@@ -294,11 +341,8 @@ function add_block!(
     size_class::SizeClass, lower_bound::Float64, upper_bound::Float64, density::Float64
 )::Nothing
     # Reallocate excess memory if buffers are full
-    if size_class.block_densities.capacity == size_class.block_densities.length
-        current_capacity::Int64 = size_class.block_densities.capacity
-        reallocate!(size_class.block_lower_bounds, current_capacity + 100)
-        reallocate!(size_class.block_upper_bounds, current_capacity + 100)
-        reallocate!(size_class.block_densities, current_capacity + 100)
+    if isfull(size_class.block_densities)
+        reallocate!(size_class, 100)
     end
 
     push!(size_class.block_lower_bounds, lower_bound)
@@ -420,6 +464,7 @@ function transfer_and_grow!(
     _apply_internal_growth!(prev_class, prev_growth_rate)
     # Remove corals that out grow bounds
     remove_outgrown!(prev_class)
+
     return nothing
 end
 function transfer_and_grow!(
@@ -512,6 +557,7 @@ function coral_cover(
     cache[end] = functional_group.terminal_class.density * average_area(
         functional_group.terminal_class
     )
+
     return nothing
 end
 function coral_cover(size_class::SizeClass)::Float64
