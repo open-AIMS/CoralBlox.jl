@@ -2,7 +2,7 @@
 
 julia_version = "1.10.3"
 manifest_format = "2.0"
-project_hash = "832e84f5743a4cb98e15fc19e2b37e5cf0c55655"
+project_hash = "3ed12d95fa0662b7be086c1dc09636456a6a2bd0"
 
 [[deps.AbstractTrees]]
 git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
@@ -90,6 +90,12 @@ weakdeps = ["SparseArrays"]
 
     [deps.ChainRulesCore.extensions]
     ChainRulesCoreSparseArraysExt = "SparseArrays"
+
+[[deps.CircularArrayBuffers]]
+deps = ["Adapt"]
+git-tree-sha1 = "920c851e3a55a770ee3f1838f7e1b4f3f54b3642"
+uuid = "9de3a189-e0c0-4e15-ba3b-b14b9fb0aec1"
+version = "0.1.14"
 
 [[deps.CommonSubexpressions]]
 deps = ["MacroTools", "Test"]
