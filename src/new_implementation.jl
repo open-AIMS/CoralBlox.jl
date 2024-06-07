@@ -1,6 +1,5 @@
 module circular
 
-using LinearAlgebra.BLAS: scal!
 using DataStructures: CircularBuffer
 
 struct SizeClass
@@ -10,6 +9,8 @@ struct SizeClass
     block_densities::CircularBuffer{Float64}
     block_lower_bounds::CircularBuffer{Float64}
     block_upper_bounds::CircularBuffer{Float64}
+
+    cache::Vector{Float64}
 end
 
 mutable struct TerminalClass
@@ -96,12 +97,14 @@ function SizeClass(
     push!(block_upper_bounds, upper_bound)
     push!(block_densities, density)
 
+    cache::Vector{Float64} = zeros(3)
     return SizeClass(
         lower_bound,
         upper_bound,
         block_densities,
         block_lower_bounds,
-        block_upper_bounds
+        block_upper_bounds,
+        cache
     )
 end
 
@@ -158,8 +161,7 @@ function apply_survival!(
     return nothing
 end
 function apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
-    scal!(survival_rate, size_class.block_densities.buffer)
-    # size_class.block_densities.buffer .*= survival_rate
+    size_class.block_densities.buffer .*= survival_rate
 
     return nothing
 end
@@ -357,15 +359,12 @@ function transfer_blocks!(
 )::Nothing
     # Blocks that exceed this bound will move to the next size class
     moving_bound::Float64 = prev_class.upper_bound - prev_growth_rate
-    new_lower_bound::Float64 = 0.0
-    new_upper_bound::Float64 = 0.0
-    new_density::Float64 = 0.0
     for block_idx in 1:n_blocks(prev_class)
         # Skip blocks that are not migrating
         if prev_class.block_upper_bounds[block_idx] <= moving_bound
             break
         end
-        new_lower_bound, new_upper_bound, new_density = calculate_new_block!(
+        prev_class.cache .= calculate_new_block!(
             prev_class.block_lower_bounds[block_idx],
             prev_class.block_upper_bounds[block_idx],
             prev_class.block_densities[block_idx],
@@ -373,7 +372,7 @@ function transfer_blocks!(
             prev_growth_rate,
             next_growth_rate
         )
-        add_block!(next_class, new_lower_bound, new_upper_bound, new_density)
+        add_block!(next_class, prev_class.cache[1], prev_class.cache[2], prev_class.cache[3])
     end
 
     return nothing
