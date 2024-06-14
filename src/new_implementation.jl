@@ -97,15 +97,20 @@ function FunctionalGroup(
 end
 
 function Base.show(io::IO, mime::MIME"text/plain", fg::FunctionalGroup)::Nothing
+    lb = fg.terminal_class.lower_bound
+    ub = fg.terminal_class.upper_bound
+    density = fg.terminal_class.density
+
     println("""
     Functional Group
 
     Number of Size Classes: $(length(fg.size_classes))
 
     Terminal Size Class:
-    Lower bound: $(fg.terminal_class.lower_bound)
-    Upper bound: $(fg.terminal_class.upper_bound)
-    Current cover: $(fg.terminal_class.cover)
+        Lower bound: $(lb)
+        Upper bound: $(ub)
+        Current density: $(density)
+        Current number of corals: $(n_corals(lb, ub, density))
     """)
 
     return nothing
