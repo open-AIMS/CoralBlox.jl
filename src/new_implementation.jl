@@ -635,6 +635,8 @@ function coral_cover(size_class::SizeClass)::Float64
             size_class.block_upper_bounds[i]^3 - size_class.block_lower_bounds[i]^3
         )
     end
+
     return cover
 end
+
 end
