@@ -1,4 +1,4 @@
-module DynamicCoralCoverModel
+module CoralBlox
 
 include("blocks_model.jl")
 include("plot_inspect.jl")
