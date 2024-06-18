@@ -6,6 +6,7 @@ using CoralBlox:
     remove_outgrown!,
     _apply_internal_growth!,
     transfer_blocks!,
+    merge_transfer!,
     add_block!
 
 @testset "adjusted_growth" begin
@@ -332,4 +333,70 @@ end
         "Unexpected block upper bounds."
     @test all(test_size_class.block_densities .== 2.0) ||
         "Unexpected block densities."
+end
+
+function empty_buffers!(size_class::SizeClass)::Nothing
+    empty!(size_class.block_lower_bounds)
+    empty!(size_class.block_upper_bounds)
+    empty!(size_class.block_densities)
+    return nothing
+end
+
+@testset "merge_transfer" begin
+    smallest_growth::Float64 = 1.0
+    smallest_class::SizeClass = SizeClass(1.0, 6.0, 1.0)
+
+    larger_growth::Float64 = 2.0
+    larger_class::SizeClass = SizeClass(6.0, 12.0, 5.0)
+    remove_first_block!(larger_class)
+
+    merge_transfer!(smallest_class, larger_class, smallest_growth, larger_growth)
+
+    @test (
+        larger_class.block_lower_bounds[1] == 6.0 &&
+        larger_class.block_upper_bounds[1] == 8.0 &&
+        larger_class.block_densities[1] == smallest_class.block_densities[1] / 2
+    ) || "Incorrect block addition in merge transfer."
+
+    # Reset classes
+    empty_buffers!(larger_class)
+    empty_buffers!(smallest_class)
+    add_block!(smallest_class, 5.5, 6.0, 1.0)
+    add_block!(smallest_class, 1.0, 6.0, 1.0)
+
+    merge_transfer!(smallest_class, larger_class, smallest_growth, larger_growth)
+
+    @test (
+        length(larger_class.block_lower_bounds) == 2 &&
+        length(larger_class.block_upper_bounds) == 2 &&
+        length(larger_class.block_densities) == 2
+    ) || "Incorrect number of blocks transfered."
+
+    @test (
+        larger_class.block_lower_bounds[2] == 6.0 &&
+        larger_class.block_upper_bounds[2] == 8.0 &&
+        larger_class.block_densities[2] == smallest_class.block_densities[1] / 2
+    ) || "Incorrect block addition in merge transfer."
+
+    empty_buffers!(larger_class)
+    empty_buffers!(smallest_class)
+
+    add_block!(smallest_class, 5.5, 6.0, 1.0)
+    add_block!(smallest_class, 3.0, 6.0, 1.0)
+    add_block!(smallest_class, 2.0, 6.0, 1.0)
+    add_block!(smallest_class, 1.0, 6.0, 1.0)
+
+    merge_transfer!(smallest_class, larger_class, smallest_growth, larger_growth)
+
+    @test (
+        length(larger_class.block_lower_bounds) == 2 &&
+        length(larger_class.block_upper_bounds) == 2 &&
+        length(larger_class.block_densities) == 2
+    ) || "Incorrect number of blocks transfered."
+
+    @test (
+        larger_class.block_lower_bounds[2] == 6.0 &&
+        larger_class.block_upper_bounds[2] == 8.0 &&
+        larger_class.block_densities[2] == 3 * smallest_class.block_densities[1] / 2
+    ) || "Incorrect block addition in merge transfer."
 end

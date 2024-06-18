@@ -506,13 +506,15 @@ function merge_transfer!(
     smallest_growth_rate::Float64,
     next_growth_rate::Float64
 )::Nothing
-    lower_bound_condition::Float64 = smallest_class.upper_bound - next_growth_rate
+    lower_bound_condition::Float64 = smallest_class.upper_bound - smallest_growth_rate
 
     # Migrate blocks that do not give identical new blocks
     final_index::Int64 = 0
+    early_exit::Bool = false
     for block_idx in 1:n_blocks(smallest_class)
         if smallest_class.block_lower_bounds[block_idx] <= lower_bound_condition
             final_index = block_idx
+            early_exit = true
             break
         end
         smallest_class.movement_cache .= calculate_new_block!(
@@ -528,12 +530,13 @@ function merge_transfer!(
             @view(smallest_class.movement_cache[1:3])
         )
     end
-    if final_index == n_blocks(smallest_class)
+
+    if !early_exit
         return nothing
     end
     # The width of new blocks is always next_growth_rate. So we need only add densities and
     # adjust for new width
-    new_density::Float64 = sum(smallest_class.block_densities[final_index+1:end])
+    new_density::Float64 = sum(smallest_class.block_densities[final_index:end])
     new_density *= smallest_growth_rate / next_growth_rate
 
     add_block!(
