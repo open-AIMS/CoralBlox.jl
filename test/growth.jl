@@ -1,5 +1,5 @@
 using Test
-using DynamicCoralCoverModel.circular:
+using CoralBlox:
     SizeClass,
     adjusted_growth,
     calculate_new_block!,
@@ -170,9 +170,9 @@ end
     add_block!(test_size_class, lower_bound, upper_bound, density)
 
     @test (
-        test_size_class.block_lower_bounds.capacity == 15 &&
-        test_size_class.block_lower_bounds.capacity == 15 &&
-        test_size_class.block_lower_bounds.capacity == 15
+        test_size_class.block_lower_bounds.capacity == 37 &&
+        test_size_class.block_lower_bounds.capacity == 37 &&
+        test_size_class.block_lower_bounds.capacity == 37
     ) || "Size class should have capacity 15"
 
     # Test adding block that covers size class

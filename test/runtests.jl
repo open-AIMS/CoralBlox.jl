@@ -1,4 +1,4 @@
-using DynamicCoralCoverModel
+using CoralBlox
 using Test
 
 include("growth.jl")
