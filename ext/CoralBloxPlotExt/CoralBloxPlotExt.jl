@@ -1,10 +1,10 @@
-module DynamicCoralPlotExt
+module CoralBloxPlotExt
 
-using DynamicCoralCoverModel
-import DynamicCoralCoverModel.blocks_model: CoverBlock
-import DynamicCoralCoverModel.blocks_model: SizeClass
-import DynamicCoralCoverModel.blocks_model: Δinterval
-import DynamicCoralCoverModel.blocks_model: interval_lower_bound
+using CoralBlox
+import CoralBlox.blocks_model: CoverBlock
+import CoralBlox.blocks_model: SizeClass
+import CoralBlox.blocks_model: Δinterval
+import CoralBlox.blocks_model: interval_lower_bound
 
 using Makie, Makie.GeometryBasics
 
@@ -23,7 +23,7 @@ end
 """
 This function will plot one figure for each timestep
 """
-function DynamicCoralCoverModel.Plot.plot_size_class(size_classes::Matrix{SizeClass}, timestep::Int64)
+function CoralBlox.Plot.plot_size_class(size_classes::Matrix{SizeClass}, timestep::Int64)
     f = Figure(; size=(1600, 1600))
     n_species, n_bins = size(size_classes)
     x = [1, 1, 2, 2, 3, 3]
@@ -59,7 +59,7 @@ function DynamicCoralCoverModel.Plot.plot_size_class(size_classes::Matrix{SizeCl
     return nothing
 end
 
-# function DynamicCoralCoverModel.Plot.plot_taxa(cover::Array{Float64, 3})
+# function CoralBlox.Plot.plot_taxa(cover::Array{Float64, 3})
 #     cover_t = dropdims(sum(cover, dims=3), dims=3) ./ 48671.0938
 #     colors = [:red, :green, :blue, :purple, :yellow]
 #
@@ -85,7 +85,7 @@ end
 #     return f
 # end
 #
-# function DynamicCoralCoverModel.Plot.plot_size_classes(cover, species, name)
+# function CoralBlox.Plot.plot_size_classes(cover, species, name)
 #
 #     cover = cover ./ 48671.0938
 #
@@ -117,7 +117,7 @@ end
 #     return f
 # end
 #
-# function DynamicCoralCoverModel.Plot.plot_total_cover(cover)
+# function CoralBlox.Plot.plot_total_cover(cover)
 #     total_cover = dropdims(sum(cover, dims=(2, 3)), dims=(2, 3)) ./ 48671.0938
 #
 #     f = Figure()

@@ -3,7 +3,7 @@
 The following is for running the model for 75 timesteps.
 
 ```
-import DynamicCoralCoverModel: blocks_model
+import CoralBlox: blocks_model
 
 cover = blocks_model.run_model(75)
 ```
