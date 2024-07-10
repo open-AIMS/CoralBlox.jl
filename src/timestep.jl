@@ -169,29 +169,29 @@ function reuse_buffers!(size_class::SizeClass, cover::Float64)::Nothing
 end
 
 """
-    apply_survival!(functional_group::FunctionalGroup, survival_rate::Vector{Float64})::Nothing
-    apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
-    apply_survival!(functional_groups::Vector{FunctionalGroup}, survival_rate::Union{Matrix{Float64}, SubArray{Float64, 2}})::Nothing
+    apply_mortality!(functional_group::FunctionalGroup, survival_rate::Vector{Float64})::Nothing
+    apply_mortality!(size_class::SizeClass, survival_rate::Float64)::Nothing
+    apply_mortality!(functional_groups::Vector{FunctionalGroup}, survival_rate::Union{Matrix{Float64}, SubArray{Float64, 2}})::Nothing
 
 Apply mortality/survival probability to coral densities in blocks.
 """
-function apply_survival!(
+function apply_mortality!(
     functional_groups::Vector{FunctionalGroup},
     survival_rate::Union{Matrix{Float64}, SubArray{Float64, 2}}
 )::Nothing
-    apply_survival!.(functional_groups, eachrow(survival_rate))
+    apply_mortality!.(functional_groups, eachrow(survival_rate))
     return nothing
 end
-function apply_survival!(
+function apply_mortality!(
     functional_group::FunctionalGroup,
     survival_rate::Union{Vector{Float64}, SubArray{Float64, 1}}
 )::Nothing
-    apply_survival!.(functional_group.size_classes, survival_rate[1:end-1])
+    apply_mortality!.(functional_group.size_classes, survival_rate[1:end-1])
     functional_group.terminal_class.density *= survival_rate[end]
 
     return nothing
 end
-function apply_survival!(size_class::SizeClass, survival_rate::Float64)::Nothing
+function apply_mortality!(size_class::SizeClass, survival_rate::Float64)::Nothing
     size_class.block_densities .*= survival_rate
 
     return nothing
@@ -561,7 +561,7 @@ function timestep!(
     growth_rate::SubArray{Float64, 1},
     survival_rate::SubArray{Float64, 1}
 )::Nothing
-    apply_survival!(functional_group, survival_rate)
+    apply_mortality!(functional_group, survival_rate)
 
     transfer_and_grow!(
         functional_group.size_classes[end],
