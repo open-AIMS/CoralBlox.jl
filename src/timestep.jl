@@ -139,7 +139,7 @@ end
 
 function reuse_buffers!(
     functional_groups::Vector{FunctionalGroup},
-    cover::Union{Matrix{Float64}, SubArray{Float64, 2}}
+    cover::Union{Matrix{Float64},SubArray{Float64,2}}
 )::Vector{FunctionalGroup}
     reuse_buffers!.(functional_groups, eachrow(cover))
     return functional_groups
@@ -177,14 +177,14 @@ Apply mortality/survival probability to coral densities in blocks.
 """
 function apply_mortality!(
     functional_groups::Vector{FunctionalGroup},
-    survival_rate::Union{Matrix{Float64}, SubArray{Float64, 2}}
+    survival_rate::Union{Matrix{Float64},SubArray{Float64,2}}
 )::Nothing
     apply_mortality!.(functional_groups, eachrow(survival_rate))
     return nothing
 end
 function apply_mortality!(
     functional_group::FunctionalGroup,
-    survival_rate::Union{Vector{Float64}, SubArray{Float64, 1}}
+    survival_rate::Union{Vector{Float64},SubArray{Float64,1}}
 )::Nothing
     apply_mortality!.(functional_group.size_classes, survival_rate[1:end-1])
     functional_group.terminal_class.density *= survival_rate[end]
@@ -290,11 +290,11 @@ function remove_outgrown!(size_class::SizeClass)::Nothing
 end
 
 """
-    adjusted_growth(bound::Float64, upper_bound::Float64, prev_growth_rate::Float64, next_growth_rate::Float64)::Float64
+    crossedge_displacement(bound::Float64, upper_bound::Float64, prev_growth_rate::Float64, next_growth_rate::Float64)::Float64
 
-Calculate the change in a bound when crossing a size class boundary.
+Calculate the change in a bound when crossing a size class edge.
 """
-function adjusted_growth(
+function crossedge_displacement(
     bound::Float64,
     upper_bound::Float64,
     prev_growth_rate::Float64,
@@ -311,7 +311,7 @@ end
 Add new cover block to the given size class. Resize the size class if the buffer is already
 full.
 """
-function add_block!(size_class::SizeClass, block_attrs::SubArray{Float64, 1})
+function add_block!(size_class::SizeClass, block_attrs::SubArray{Float64,1})
     # Reallocate excess memory if buffers are full
     if size_class.block_densities.capacity == size_class.block_densities.length
         new_current_capacity::Int64 = size_class.block_densities.capacity + 32
@@ -370,18 +370,18 @@ function calculate_new_block!(
     next_class::SizeClass,
     prev_growth_rate::Float64,
     next_growth_rate::Float64
-)::Tuple{Float64, Float64, Float64}
+)::Tuple{Float64,Float64,Float64}
     # Check if the lower bound outgrows the upper bound as well
     outgrowing_lb::Bool = block_lb > (next_class.lower_bound - prev_growth_rate)
 
     # Calculate bounds and density of new cover block
     new_lower_bound::Float64 = (
-        !outgrowing_lb ? next_class.lower_bound : block_lb + adjusted_growth(
+        !outgrowing_lb ? next_class.lower_bound : block_lb + crossedge_displacement(
             block_lb, next_class.lower_bound, prev_growth_rate, next_growth_rate
         )
     )
 
-    new_upper_bound::Float64 = block_ub + adjusted_growth(
+    new_upper_bound::Float64 = block_ub + crossedge_displacement(
         block_ub, next_class.lower_bound, prev_growth_rate, next_growth_rate
     )
 
@@ -542,7 +542,7 @@ function merge_transfer!(
     add_block!(
         next_class,
         smallest_class.upper_bound,
-        smallest_class.upper_bound+next_growth_rate,
+        smallest_class.upper_bound + next_growth_rate,
         new_density
     )
     return nothing
@@ -557,9 +557,9 @@ end
 
 function timestep!(
     functional_group::FunctionalGroup,
-    recruitment::Float64,
-    growth_rate::SubArray{Float64, 1},
-    survival_rate::SubArray{Float64, 1}
+    recruits::Float64,
+    growth_rate::SubArray{Float64,1},
+    survival_rate::SubArray{Float64,1}
 )::Nothing
     apply_mortality!(functional_group, survival_rate)
 
@@ -588,9 +588,12 @@ function timestep!(
     _apply_internal_growth!(functional_group.size_classes[1], growth_rate[1])
     remove_outgrown!(functional_group.size_classes[1])
 
-    area_factor::Float64 = average_area(functional_group.size_classes[1])
-    density::Float64 = recruitment / area_factor
-    add_block!(functional_group.size_classes[1], density)
+    # Add recruits cover block only when there are recruits
+    if recruits > 0.0
+        area_factor::Float64 = average_area(functional_group.size_classes[1])
+        recruits_density::Float64 = recruits / area_factor
+        add_block!(functional_group.size_classes[1], recruits_density)
+    end
 
     return nothing
 end
@@ -607,30 +610,31 @@ function timestep!(
 end
 
 """
-    coral_cover(functional_group::Vector{FunctionalGroup}, cache::SubArray{Float64, 2})::Nothing
-    coral_cover(functional_group::FunctionalGroup, cache::SubArray{Float64, 1})::Nothing
+    coral_cover(functional_group::Vector{FunctionalGroup}, C_cover::SubArray{Float64, 2})::Nothing
+    coral_cover(functional_group::FunctionalGroup, C_cover::SubArray{Float64, 1})::Nothing
     coral_cover(size_class::SizeClass)::Float64
 """
 function coral_cover(
     functional_group::Vector{FunctionalGroup},
-    cache::SubArray{Float64, 2}
+    C_cover::SubArray{Float64,2}
 )::Nothing
-    coral_cover.(functional_group, eachrow(cache))
+    coral_cover.(functional_group, eachrow(C_cover))
 
     return nothing
 end
 function coral_cover(
     functional_group::FunctionalGroup,
-    cache::SubArray{Float64, 1}
+    C_cover::SubArray{Float64,1}
 )::Nothing
-    cache[1:end-1] .= coral_cover.(functional_group.size_classes)
-    cache[end] = functional_group.terminal_class.density * average_area(
+    C_cover[1:end-1] .= coral_cover.(functional_group.size_classes)
+    C_cover[end] = functional_group.terminal_class.density * average_area(
         functional_group.terminal_class
     )
     return nothing
 end
 function coral_cover(size_class::SizeClass)::Float64
     cover::Float64 = 0.0
+    #? I think we could broadcast this operation
     for i in 1:n_blocks(size_class)
         cover += size_class.block_densities[i] * π / 12 * (
             size_class.block_upper_bounds[i]^3 - size_class.block_lower_bounds[i]^3
