@@ -1,7 +1,5 @@
-module CoralBlox
+using CoralBlox
+using Test
 
-include("plot_inspect.jl")
 include("timestep.jl")
 include("linear_extension.jl")
-
-end
