@@ -1,219 +1,244 @@
-# Quick Start
+# CoralBlox.jl
 
-The following is for running the model for 75 timesteps.
+-----
 
+CoralBlox is a coral growth and mortality model. It simulates distinct coral
+`FunctionalGroups` indirectly competing for a limited space over time. The model does not
+directly consider disturbances such as mortality caused by cyclone, CoTS or heat stress. It
+also does not have representation of anthropogenic restoration and conservation activities
+such as coral seeding or cloud brightening. Such considerations can be included by
+perturbing model state and CoralBlox parameters between time steps.
+
+In CoralBlox, the corals are grouped according to their approximate diameter, forming
+`SizeClasses`. A `SizeClass` is defined by a diameter interval, so all corals whose diameter
+lie within the same interval belong to the same `SizeClass`. Hence, at each timestep, coral
+growth is represented by a displacement in the diameter space. For each functional group,
+corals from distinct `SizeClasses` have distinct growth rates. Since all corals within the
+same `SizeClass` and `FunctionalGroup` have the same growth rate, we can visualize the
+growth as groups of corals moving on the diameter space in blocks. Further details about
+how this growth and mortality are implemented can be found below.
+
+## Quick Start
+
+Before running the model, one needs to instantiate an Array to hold the coral cover for each
+timestep, `FunctionalGroup` and `SizeClass`, and a vector of `FunctionalGroup`s:
+
+```julia
+using CoralBlox: FunctionalGroup
+
+n_timesteps::Int64 = 75
+n_functional_groups::Int64 = 2
+n_size_classes::Int64 = 4
+
+# Coral cover cache
+C_cover::Array{Float64, 3} = zeros(n_timesteps, n_functional_groups, n_size_classes)
+
+# Habitable area is the maximum possible cover that a location can hold
+habitable_area::Float64 = 1e7
+
+# Each row contains SizeClass' bounds
+size_class_bounds::Matrix{Float64} = [
+    0 0.1 0.3 0.5 0.7;
+    0 0.1 0.2 0.4 0.5
+]
+
+# Mock initial coral cover
+C_cover[1,:,:] = [
+    0.07 0.08 0.06 0.05;
+    0.06 0.07 0.04 0.02;
+] .* habitable_area
+
+# Create functional groups
+functional_groups::Vector{FunctionalGroup} = FunctionalGroup.(
+    eachrow(size_class_bounds[:, 1:end-1]),      # lower bounds
+    eachrow(size_class_bounds[:, 2:end]),        # upper bounds
+    eachrow(initial_coral_covers)                # initial coral covers
+)
 ```
-import CoralBlox: blocks_model
 
-cover = blocks_model.run_model(75)
+In order to run a single timestep, a vector of recruits (representing young corals
+entering the system) and matrices containing growth and survival rates for each
+`FunctionalGroup` and `SizeClass` is needed:
+
+```julia
+using CoralBlox: timestep
+
+# Mock recruits
+recruits::Vector{Float64} = [1e5, 2e5]
+
+# Mock linear extensions
+linear_extensions::Matrix{Float64} = [
+    15 25 35 25;
+    10 20 25 15;
+]
+
+# Mock survival rate
+survival_rate::Matrix{Float64} = 1 .- [
+    0.05 0.05 0.03 0.01;
+    0.1 0.08 0.04 0.02
+]
+
+for tstep::Int64 in 2:n_timesteps
+    # Linear extension scale factor
+    lin_ext_scale_factors::Vector{Float64} = linear_extension_scale_factors(
+        C_cover[tstep, :, :],
+        available_area,
+        linear_extensions,
+        size_class_bounds,
+        habitable_max_projected_cover,
+    )
+
+    # Only re-scale if total cover is above a given threshold
+    scale_threshold = 0.7 .* available_area
+    lin_ext_scale_factors[
+        dropdims(sum(C_cover[tstep, :, :], dims=(1,2)), dims=(1,2)).< scale_threshold
+    ] .= 1
+
+    # Use scale factor to calculate growth rate
+    growth_rate::Matrix{Float64} = linear_extensions .* lin_ext_scale_factors
+
+    # Perform timestep
+    timestep!(
+        functional_groups,
+        recruitment,
+        growth_rate,
+        survival_rate
+    )
+
+    # Write to the cover matrix
+    coral_cover(functional_groups, @view(C_cover[tstep, :, :]))
+end
 ```
 
-# Coral Cover Dynamic Toy Model
+The `lin_ext_scale_factors` calculated at each timestep prevents the corals from outgrowing
+the habitable area, taking into account the simultaneous growth across all functional groups
+and size classes. Details about how this scale factor is calculated and used can be
+found below.
 
-This model to represents a Reef's coral cover change in time over the years. It allows for the representation of distinct functional groups, indexed $f=1,2,...$. A single coral's area is approximated by the area of a circumference with diameter $x$:
+Consideration of external factors that may influence coral growth and mortality
+could be included outside of each `timestep!` call, potentially informed by a broader
+ecosystem model.
 
-$$
-a(x) = \frac{\pi x^2}{4} \tag{1}
-$$
+## Model details
 
-Hence, when we talk about the size of a coral it means its diameter. The sum of the area of all individual corals within a particular functional group corresponds to that functional group's coral cover.
-
-At each time step, a fraction of the corals die and the survivals grow, and we have a batch of new corals (settlers) due to reproduction. The background mortality and growth rates depend on the size of the corals and functional group. To represent this difference, we split the space of possible diameters for each functional group $f$ into $s$ subspaces $\sigma_{f,1},...,\sigma_{f,s}$ so all corals with diameter within the same subspace have the same ecological behavior. A subspace $\sigma_{f,s}$ is an interval (in the diameter space) constrained by a lower bound $\sigma_{f,s}^-$ and a upper bound $\sigma_{f,s}^+$ or, in other words, $\sigma_{f,s} = [\sigma_{f,s}^-, \sigma_{f,s}^+]$. As a consequence, $\sigma_{f,s}^+ = \sigma_{f,s+1}^-$.
-
-For each functional group and diameter subspace we have a base value for the increment in the diameter size, called *linear extension* and represented by $l_{f,s}$. The increase in diameter for a single coral, at each time step, is given by
-
-$$
-D_{f,s}(t) = k(t) \cdot l_{f,s} \tag{2}
-$$
-
-where
+Consider the area of each colony approximated by the area of a circumference with diameter
+$x$:
 
 $$
-k(t) = 1 - C(t)/k_{max} \tag{3}
+\begin{equation}
+    a(x) = \frac{\pi x^2}{4}
+\end{equation}
 $$
 
-is the available space at time $t$. $k_{max}$ is the carrying capacity and $C(t)$ is the total coral cover at time $t$ considering all functional groups and diameters subspaces.
-
-In the next section we will learn how to calculate the cover for the corals within each diameter subspace so we can build the dynamic equations.
-
-## Coral cover  calculation
-
-Suppose there are $N_{f,s}(t) > 0$ corals of functional group $f$ within some diameter subspace $s$, at time step $t$, and that they are uniformly distributed along that subspace. The coral density per diameter is given by:
+Hence, given a diameter density function $\lambda(x)$ that represents the number of corals
+with diameter $x$, the area $C(x_i,x_f)$ covered by corals with diameter between $x_i$ and
+$x_f$ is given by the integral:
 
 $$
-\lambda_{f,s}(t) = \frac{N_{f,s}(t)}{\Delta \sigma_{f,s}} \tag{4}
+\begin{equation}
+    C(x_i,x_f) = \int_{x_i}^{x_f} \lambda(x) \frac{\pi x^2}{4} dx
+\end{equation}
 $$
 
-Where $\Delta \sigma_{f,s} = \Delta \sigma_{f,s}^+ - \Delta \sigma_{f,s}^-$ is the bin size of the diameter subspace $\sigma_{f,s}$.
-
-The distribution of area per diameter for the functional group $f$ and subspace $s$, at the time step $t$, is given, by:
-
-$$
-\begin{align*}
-\Gamma_{f,s}(t; x) =& a(x) \lambda_{f,s}(t) \\
-=& \frac{\pi x^2}{4} \frac{N_{f,s}(t)}{\Delta \sigma_{f,s}} \tag{5}
-\end{align*}
-$$
-
-One thing to note here is that this distribution has dimension of `Area/diameter`[^1].
-
-[^1]: Since the area and diameter can be measured in `m^2`/`m`, `cm^2`/`cm`, etc, the actual dimension here should be based on whatever units you use to measure those. But I decided to leave it this way to emphasize that `Area` is measured in the "physical" space, whereas `diameter` is measured in the diameter space.
-
-The cover $C_{f,s}(t;a,b)$ correspondent to the corals from the functional group $f$ within the interval $[a, b]$, where $[a,b] \subset \sigma_{f,s}$ is given by:
+In practice, we work with groups of coral with a constant diameter density over a certain
+diameter interval, that we call `CoralBlock`. Each `CoralBlock` is characterized by a
+constant diameter density $\lambda_{\tau\sigma b}$ (the block's height) and a diameter
+interval $[\delta_{\tau\sigma b}^-, \delta_{\tau\sigma b}^+]$, with size
+$\Delta \delta_{\tau\sigma b} = \delta_{\tau\sigma b}^+ - \delta_{\tau\sigma b}^-$ (the
+block's width). The indices $\tau\sigma b$ refer to the $b$-th block from functional group
+$\tau$ and size class $\sigma$. Therefore, the area covered by the corals within a coral
+block $\tau\sigma b$ is given by:
 
 $$
-\begin{aligned}
-C_{f,s}(t; a,b) =& \int_{a}^{b} \Gamma_{f,s}(t; x) dx \\
-=& \int_{a}^{b} \frac{\pi x^2}{4} \lambda_{f,s}(t) dx \\
-=& \lambda_{f,s}(t)\frac{\pi }{4} \int_{a}^{b} x^2dx \Rightarrow \\
-\end{aligned}
+\begin{equation}
+    C_{\tau\sigma b} = \lambda_{\tau\sigma b} \frac{\pi}{12} ((\delta_{\tau\sigma b}^+)^3 - (\delta_{\tau\sigma b}^-)^3)
+\end{equation}
 $$
 
-$$
-\boxed{C_{f,s}(t; a,b) = \lambda_{f,s}(t) \frac{\pi}{12} (b^3 - a^3)} \tag{6}
-$$
+The following sections explain in more detail how growth and mortality are represented.
 
-Since the cover $C_{f,s}(0) \equiv C_{f,s}(0; \sigma_{f,s}^-, \sigma_{f,s}^+)$ of all corals from functional group $f$ with diameter within the diameter subspace $s$ at time $0$ is known, we can use eq. (6) to find an expression for the initial densities $\lambda_{f,s}(0)$:
+### How does mortality work?
 
-$$
-C_{f,s}(0) = \lambda_{f,s}(0) \cdot \frac{\pi}{12} \left[(\sigma_{f,s}^+)^3 - (\sigma_{f,s}^-)^3\right] \Rightarrow
-$$
-
-$$
-\boxed{\lambda_{f,s}(0) = C_{f,s}(0) \cdot \frac{12}{\pi} \cdot \frac{1}{(\sigma_{f,s}^+)^3 - (\sigma_{f,s}^-)^3}} \tag{7}
-$$
-
-<!--
-And using eq. (5) in (4) we have:
+At each timestep $t$, before the growth event, we apply a survival rate to each
+`CoralBlock`. That is done by multiplying each `FunctionalGroup` and `SizeClass` survival
+rate $(1 - m_{\tau\sigma})$ by each `CoralBlock` diameter density
+$\lambda_{\tau\sigma b; t}$, so that:
 
 $$
-C_s(t; d_i, d_f) = C_s(t) \cdot \frac{12}{\pi} \cdot \frac{1}{(d_{s+1}^3 - d_{s}^3)} \cdot \frac{\pi }{12} (d_f^3 - d_i^3) \Rightarrow
+\begin{equation}
+    \lambda_{\tau\sigma b; t} = \lambda_{\tau\sigma b; t-1} (1 - m_{\tau\sigma})
+\end{equation}
 $$
 
-$$
-\boxed{C_s(t; d_i, d_f) = C_s(t)  \cdot \frac{d_f^3 - d_i^3}{d_{s+1}^3 - d_{s}^3}}  \tag{8}
-$$
+### How does growth work?
 
-Eq. (8) gives cover correspondent to the corals with diameter between $d_i$ and $d_f$. Note that, when $d_i = d_{s}$ and $d_f = d_{s+1}$, we have $C_s(t; d_{s}, d_{s+1}) = C_s(t)$ as expected; and when $d_i = d_f$ the cover goes to zero. Next we are going to use this equation to find the change in cover for each size class at each time step due to growth and size class changing.
--->
+For each `FunctionalGroup`, we can think of a horizontal axis representing the diameter
+space with its `CoralBlock`s lined up. Then, a growth event is conceived as the displacement
+of each block in this axis by a factor $\omega_{\tau\sigma;t}$, called growth rate, constant
+for each `FunctionalGroup` $\tau$ and `SizeClass` $\sigma$. $\omega_{\tau\sigma;t}$ is
+always smaller than the correspondent `SizeClass` width
+$\Delta d_{\tau\sigma}=d_{\tau\sigma}^+-d_{\tau\sigma}^-$.
 
-> **_NOTE:_** This documentation from this point up to the end still need to be updated. Don't trust anything you read from now on.
+After a growth event we can have one of the three following situations: (1) the entire block
+remains in size class $\sigma$; (2) the entire block has moved to size class $\sigma+1$; (3)
+part of the block remains in size class $\sigma$ and part has moved to size class
+$\sigma+1$. In the last case, we break the block in two new blocks, each belonging to only
+a single size class.
 
-## The Dynamics
+In (1), the `CoralBlock` doesn't cross the frontier between `SizeClass`es. In this case,
+its movement is constant. In (2) and (3), as soon as part of the block enters the next
+`SizeClass`, the two parts move with different speeds (one can think of an analogy with a
+mass of water flowing between two pipes with distinct diameters).
 
-In this model what changes over time is an area (coral cover cover), and not the number of individuals. There are three phases within a time step iteration: a *mortality phase*; a *growth phase*; and a *settlement phase*.
+<!-- TODO
 
-In the *mortality phase*, a fraction $m_s(t)$ of each size class $s$ is removed. The mortality affects all corals within a size class equally, so it **doesn't change the size class bin sizes/limits**, it just changes the coral density. Therefore, if we want to find the cover between $d_i$ and $d_f$ **after** the mortality phase, we would just have to multiply eq. (8) by $(1 - m_s)$.
+The paper will have a section with more details about this movement in the frontier between two SizeClasses. When this is done we can eiher copy/paste that here or put a link here to that section of the paper.
 
-In the *growth phase* the corals grow in diameter and, as a consequence, part of the cover changes to another size class, what can cause a size class cover to decrease while the total cover increases. All small corals either change to the medium size class or die in that phase.
+TODO -->
 
-In the *settlement phase* we get a bundle of new small corals (called settlers):
+### How does the linear extension scale factor work?
 
-$$
-\zeta(t) = r \cdot k(t) \tag{9}
-$$
+Each coral colony has a base growth $l_{\tau\sigma}$, which is an increase in diameter.
+This is referred to as the *linear extension* and depends on the colony's `FunctionalGroup`
+and `SizeClass`. As the available space gets more populated, we assume that growth is
+negatively affected, since there is a competition for resources. Even more, when there's no
+available space left, we want the growth to be zero. To account for that, at each time step
+we multiply all linear extensions by the same scale factor $\gamma_t$. This factor takes
+into account not only the leftover space, but also the competition between different
+`FunctionalGroup`s.
 
- where $r$ is a constant - although in the future this should be proportional to the number of medium and large covers.
+First we calculate a *projected cover* $C^P_t$, assuming no space limitation nor
+competition, using the linear extensions directly as growth rates. We also calculate an
+upper bound for the projected cover, called *maximum projected cover* $C^*$ assuming all
+corals are in the last `SizeClass` of the `FunctionalGroup` with the highest linear
+extension, and they growth freely. Two important notes here. First, there are infinite
+possible upper bounds and, although the choice will affect the final scale factor, this
+shouldn't change the final result drastically. Second, to prevent having to run a whole
+timestep twice, for this *projected cover* (and other calculations related to the scale
+factor) we instead use a simplified version of the model where each block moves by with a
+constant velocity, even when changing `SizeClass`es.
 
-Before we build the cover dynamic equations, it's important to note that the small and large size classes have a special behavior. If we add more size classes, all of them, except the smallest and largest ones, would behave exactly like the medium size we present here. Next we build each size class equation separately before putting it all together, highlighting inside the box the meaning of each term in that equation.
-
-### Small size class
-All small size class corals either die or migrate to the next step, so the only coral remaining in that size class at the end of the iteration are the settlers. The dynamics is given by:
-
-> - $\zeta(t)$ - Settlers cover (currently this is a constant weighted by $k$, but )
-
-$$
-C_1(t+1) = \zeta(t) \tag{10.1}
-$$
-
-### Medium size class
-There are two factors that affect this size class: internal grow (growth of the corals within size class 2 that don't migrate to the large size class) and migration of the small size class after growing. The cover after the internal grow is given by:
-
-$$
-\lambda_2 \int_{d_2}^{d_3 - D_2(t)}  \frac{\pi \Big(x + D_2(t)\Big)^2}{4} dx
-$$
-
-Which is the base of eq. (6) but with diameter given by $x + D_2(t)$ instead of $x$, since their diameter has increased. We can do a variable change $x + D_2(t) = y$ to rewrite this equation as:
-
-$$
-\lambda_2 \int_{d_2 + D_2(t)}^{d_3}  \frac{\pi y^2}{4} dy
-$$
-
-But now is easy to see that this is the same equation that lead us to eq. (8), only with intervals $[d_2 + D_2(t), d_3]$, or, in other words, $C_2(t; d_2 + D_2(t), d_3)$.
-
-By the same logic, we can write the fraction of small cover that grew and migrated to the medium size class as:
+Next, we calculate an *adjusted projected cover* $C^A_t$:
 
 $$
-\lambda_1 \int_{d_2 - D_1(t)}^{d_2}  \frac{\pi \Big(x + D_1(t)\Big)^2}{4} dx
+\begin{equation}
+    C^A_t = C_{t-1} + \frac{C^P_{t} - C_{t-1}}{C^*-C_{t-1}}\left(H - C_{t-1}\right)
+\end{equation}
 $$
 
-Which, with the variable change $x + D_1(t) = z$ becomes:
+Where $H$ is the habitable area, and $C_{t-1}$ is the cover on the previous timestep.
+One can easily see that if $C^P_{t} = C^*$, we have $C^A_t = H$. In other words, in the
+worst case, the *adjusted projected cover* is equals the habitable area. For all other
+values of $C^P_t$, we have $C^A_t < H$, which means that the *adjusted projected cover* will
+never outgrow the habitable area.
+
+Lastly, we find the scale factor $\gamma_t$ that makes the *projected cover* equal to the
+*adjusted projected cover*, assuming each `CoverBlock` growth rate is given by
+$l_{\tau\sigma} \gamma_t$ and the sum of all `CoverBlocks`. The actual growth rate
+used to run a timestep $t$ is given by:
 
 $$
-\lambda_1 \int_{d_2}^{d_2 + D_1(t)}  \frac{\pi z^2}{4} dz
+\begin{equation}
+\omega_{\tau\sigma;t} = l_{\tau\sigma} \gamma_t
+\end{equation}
 $$
-
-Which, again, can be written using eq. (8) as $C_1(t; d_2, d_2 + D_1(t))$. So, to summarize, we have:
-
->- $C_2(t; d_2 + D_2(t), d_3) \cdot (1 - m_2)$ - Fraction of the medium cover survivals that grew and didn't migrate to the large size class
->- $C_1(t; d_2, d_2 + D_1(t)) \cdot (1 - m_1)$ - Fraction of the small cover survivals that grew and migrated to the medium size
-
-$$
-\begin{align*}
-C_2(t+1) =& C_2(t; d_2 + D_2(t), d_3) \cdot (1 - m_2) + C_1(t; d_2, d_2 + D_1(t)) \cdot (1 - m_1) \\
-=& C_2(t) \cdot (1 - m_2) \cdot \frac{d_3^3 - (d_2 + D_2(t))^3}{d_{3}^3 - d_{2}^3} + C_1(t) \cdot (1 - m_1) \cdot \frac{(d_2 + D_1(t))^3 - d_2^3}{d_{2}^3 - d_{1}^3} \tag{10.2}
-\end{align*}
-$$
-
-### Large size class
-The corals within the large size class have all the same area and are not allowed to grow (otherwise we would have infinite growth). To get the cover correspondent to the corals that go from the medium size class to the large, multiply the number of survival corals within size class 2 that are inside the migration range by the area of a coral with maximum diameter $d_{max}$:
-
-$$
-\begin{align*}
-&N_2(t) \cdot (1- m_2) \cdot \frac{d_2 - (d_2 - D_2(t))}{\Delta d_2} \cdot \frac{\pi}{4}d_{max}^2 \\
-&= C_2(t) \cdot (1- m_2) \cdot \frac{12}{\pi} \frac{1}{d_{2}^3 - d_{1}^3} \Delta d_2 \cdot \frac{D_2(t)}{\Delta d_2} \cdot \frac{\pi}{4} d_{max}^2 \\
-&= C_2(t) \cdot (1- m_2) \cdot \frac{3 D_2(t) \cdot d^2_{max}}{d_{2}^3 - d_{1}^3}
-\end{align*}
-$$
-
-The dynamics is given by:
-
-> - $C_3(t) \cdot (1 - m_3)$ - Fraction of large cover that survived
-> - $C_2(t) \cdot (1 - m_2) \cdot\frac{3 D_2(t) \cdot d^2_{max}}{d_{3}^3 - d_{2}^3}$ - Fraction of medium cover survivals that grew and migrated to the large size class
-
-
-$$
-C_3(t+1) = C_3(t) \cdot (1 - m_3) + C_2(t) \cdot (1 - m_2) \cdot \frac{3 D_2(t) \cdot d^2_{max}}{(d_{3}^3 - d_{2}^3)} \tag{10.3}
-$$
-
-### Putting it all together
-
-The final cover dynamics equations are, then:
-
-$$
-\begin{cases}
-C_1(t+1) = \zeta(t)\\
-C_2(t+1) = C_2(t) \cdot (1 - m_2) \cdot \frac{d_3^3 - (d_2 + D_2(t))^3}{d_{3}^3 - d_{2}^3} + C_1(t) \cdot (1 - m_1) \cdot \frac{(d_2 + D_1(t))^3 - d_2^3}{d_{2}^3 - d_{1}^3} \\
-C_3(t+1) = C_3(t) \cdot (1 - m_3) + C_2(t) \cdot (1 - m_2) \cdot \frac{3 D_2(t) \cdot d^2_{max}}{d_{3}^3 - d_{2}^3} \tag{11}
-\end{cases}
-$$
-
-A one important things to note is the, when $k(t) = 0$ (meaning that there is no available space), we have $Z(t) = 0$ and $D_s(t) = 0$ for all $s$. In other words, no settlers and no diameter growth. As a consequence, the equations above become:
-
-$$
-\begin{cases}
-C_1(t+1) = 0\\
-C_2(t+1) = C_2(t) \cdot (1 - m_2)\\
-C_3(t+1) = C_3(t) \cdot (1 - m_3)
-\end{cases}
-$$
-
-That means that we won't have any new coral entering the system and also no cover increase, only background mortality.
-
-## Results
-
-The results below are from the most recent version of this model with two species and 4 size classes. All the logic explained in this document remains the same.
-
-![Total coral cover](/figures/cover_species_sizeclasses.png)
-
-![Coral cover by size class](/figures/cover_species_tot.png)
