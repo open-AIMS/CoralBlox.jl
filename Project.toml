@@ -1,7 +1,7 @@
 name = "CoralBlox"
 uuid = "f00a6e10-004a-11ef-3676-67ec635bc1a2"
 authors = ["Pedro Ribeiro de Almeida", "Daniel Tan", "Takuya Iwanaga"]
-version = "0.1.0"
+version = "1.0.0"
 
 [deps]
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
