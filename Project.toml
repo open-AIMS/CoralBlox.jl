@@ -1,6 +1,6 @@
 name = "CoralBlox"
 uuid = "f00a6e10-004a-11ef-3676-67ec635bc1a2"
-authors = ["Pedro Ribeiro de Almeida"]
+authors = ["Pedro Ribeiro de Almeida", "Daniel Tan", "Takuya Iwanaga"]
 version = "0.1.0"
 
 [deps]
