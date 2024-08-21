@@ -106,7 +106,7 @@ local lin_ext_scale_factors::Float64
 for tstep::Int64 in 2:n_timesteps
     # Only re-scale if total cover is above a given threshold
     lin_ext_scale_factors = if sum(C_cover[tstep-1, :, :]) < scale_threshold
-        lin_ext_scale_factors = 1
+        1
     else
         linear_extension_scale_factors(
             C_cover[tstep-1, :, :],
