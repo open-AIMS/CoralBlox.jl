@@ -21,39 +21,50 @@ how this growth and mortality are implemented can be found below.
 
 ## Quick Start
 
+This plot was generated using the following script as an example of how CoralBlox can be used:
+
+![coral blox plot](docs/assets/plain_cb.jpg)
+
+It is worth noting that in the example script below there are no environmental disturbances
+and all parameters (initial coral cover, size classes bounds, linear extensions and
+survival rates), together with the number of recruits per year, were mocked and adjusted to
+generate the above plot.
+
 Before running the model, one needs to instantiate an Array to hold the coral cover for each
 timestep, `FunctionalGroup` and `SizeClass`, and a vector of `FunctionalGroup`s:
 
 ```julia
 using CoralBlox: FunctionalGroup
 
-n_timesteps::Int64 = 75
-n_functional_groups::Int64 = 2
+n_timesteps::Int64 = 100
+n_functional_groups::Int64 = 3
 n_size_classes::Int64 = 4
 
 # Coral cover cache
 C_cover::Array{Float64, 3} = zeros(n_timesteps, n_functional_groups, n_size_classes)
 
-# Habitable area is the maximum possible cover that a location can hold
-habitable_area::Float64 = 1e7
+# Habitable area is the maximum possible cover
+habitable_area::Float64 = 1e6
 
 # Each row contains SizeClass' bounds
 size_class_bounds::Matrix{Float64} = [
-    0 0.1 0.3 0.5 0.7;
-    0 0.1 0.2 0.4 0.5
+    0 0.05 0.8 1.4 1.5;
+    0 0.05 0.5 0.9 1.0;
+    0 0.05 0.5 0.9 1.0
 ]
 
 # Mock initial coral cover
-C_cover[1,:,:] = [
-    0.07 0.08 0.06 0.05;
-    0.06 0.07 0.04 0.02;
+C_cover[1, :, :] = [
+    0.08 0.05 0.02 0.005;
+    0.07 0.06 0.03 0.007;
+    0.05 0.05 0.02 0.003
 ] .* habitable_area
 
 # Create functional groups
 functional_groups::Vector{FunctionalGroup} = FunctionalGroup.(
     eachrow(size_class_bounds[:, 1:end-1]),      # lower bounds
     eachrow(size_class_bounds[:, 2:end]),        # upper bounds
-    eachrow(initial_coral_covers)                # initial coral covers
+    eachrow(C_cover[1, :, :])                # initial coral covers
 )
 ```
 
@@ -62,46 +73,72 @@ entering the system) and matrices containing growth and survival rates for each
 `FunctionalGroup` and `SizeClass` is needed:
 
 ```julia
-using CoralBlox: timestep
-
-# Mock recruits
-recruits::Vector{Float64} = [1e5, 2e5]
+using CoralBlox: linear_extension_scale_factors, max_projected_cover,
+using CoralBlox: timestep!, coral_cover
 
 # Mock linear extensions
 linear_extensions::Matrix{Float64} = [
-    15 25 35 25;
-    10 20 25 15;
+    0.004 0.025 0.1 0.0;
+    0.003 0.007 0.005 0.0;
+    0.002 0.004 0.01 0.0
 ]
 
 # Mock survival rate
-survival_rate::Matrix{Float64} = 1 .- [
-    0.05 0.05 0.03 0.01;
-    0.1 0.08 0.04 0.02
+survival_rate::Matrix{Float64} = [
+    0.5 0.6 0.65 0.8;
+    0.6 0.7 0.8 0.8;
+    0.5 0.8 0.8 0.8
 ]
 
+# Caclulate maximum projected cover
+habitable_max_projected_cover = max_projected_cover(
+    linear_extensions,
+    size_class_bounds,
+    habitable_area
+)
+
+# Only apply linear extension scale factor when cover is above the scale_threshold
+# Assuming the effects of competition for space are only relevant when population density
+# is high enough. Note that this is not a requirement of CoralBlox.
+scale_threshold = 0.9 * habitable_area
+
+# Linear extension scale factor
+local linear_extension_scale_factors::Float64
+
 for tstep::Int64 in 2:n_timesteps
-    # Linear extension scale factor
-    lin_ext_scale_factors::Vector{Float64} = linear_extension_scale_factors(
-        C_cover[tstep, :, :],
-        available_area,
-        linear_extensions,
-        size_class_bounds,
-        habitable_max_projected_cover,
-    )
+    # Apply scale factor to linear_extension when cover is above scale_threshold to account
+    # for spatial competition when population density is high
+    linear_extension_scale_factors = if sum(C_cover[tstep-1, :, :]) < scale_threshold
+        1
+    else
+        linear_extension_scale_factors(
+            C_cover[tstep-1, :, :],
+            habitable_area,
+            linear_extensions,
+            size_class_bounds,
+            habitable_max_projected_cover,
+        )
+    end
 
-    # Only re-scale if total cover is above a given threshold
-    scale_threshold = 0.7 .* available_area
-    lin_ext_scale_factors[
-        dropdims(sum(C_cover[tstep, :, :], dims=(1,2)), dims=(1,2)).< scale_threshold
-    ] .= 1
+    # Use scale factor to calculate growth to account for spatial competition, as explained
+    growth_rate::Matrix{Float64} = linear_extensions .* linear_extension_scale_factors
 
-    # Use scale factor to calculate growth rate
-    growth_rate::Matrix{Float64} = linear_extensions .* lin_ext_scale_factors
+    # Mock recruits proportional to each functional group's cover and available space
+    # This mock is for example purposes only
+    available_space::Float64 = habitable_area - sum(C_cover[tstep-1, :, :])
+    available_proportion::Float64 = available_space / habitable_area
+    adults_cover::Vector{Float64} = dropdims(sum(C_cover[tstep-1, :, 2:end], dims=2), dims=2)
+
+    recruits_weights::Vector{Float64} = [0.6, 0.9, 1.5]
+    availability_weight::Float64 = log(2.5, 1.5 + available_proportion)
+
+    # In reality, recruits cover for each functional group would come from a fecundity model
+    recruits::Vector{Float64} = adults_cover .* recruits_weights .* availability_weight
 
     # Perform timestep
     timestep!(
         functional_groups,
-        recruitment,
+        recruits,
         growth_rate,
         survival_rate
     )
@@ -111,7 +148,7 @@ for tstep::Int64 in 2:n_timesteps
 end
 ```
 
-The `lin_ext_scale_factors` calculated at each timestep prevents the corals from outgrowing
+The `linear_extension_scale_factors` calculated at each timestep prevents the corals from outgrowing
 the habitable area, taking into account the simultaneous growth across all functional groups
 and size classes. Details about how this scale factor is calculated and used can be
 found below.
