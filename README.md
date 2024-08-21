@@ -25,7 +25,7 @@ This plot was generated using the following script as an example of how CoralBlo
 
 ![coral blox plot](docs/assets/plain_cb.jpg)
 
-It is worth noting that, in the example script below, there is no environmental disturbances
+It is worth noting that in the example script below there are no environmental disturbances
 and all parameters (initial coral cover, size classes bounds, linear extensions and
 survival rates), together with the number of recruits per year, were mocked and adjusted to
 generate the above plot.
