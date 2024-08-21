@@ -23,7 +23,7 @@ how this growth and mortality are implemented can be found below.
 
 This plot was generated using the following script as an example of how CoralBlox can be used:
 
-![coral blox plot](figures/plain_cb.jpg)
+![coral blox plot](docs/assets/plain_cb.jpg)
 
 It is worth noting that, in the example script below, there is no environmental disturbances
 and all parameters (initial coral cover, size classes bounds, linear extensions and
