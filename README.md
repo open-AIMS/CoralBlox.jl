@@ -98,14 +98,17 @@ habitable_max_projected_cover = max_projected_cover(
 )
 
 # Only apply linear extension scale factor when cover is above the scale_threshold
+# Assuming the effects of competition for space are only relevant when population density
+# is high enough. Note that this is not a requirement of CoralBlox.
 scale_threshold = 0.9 * habitable_area
 
 # Linear extension scale factor
-local lin_ext_scale_factors::Float64
+local linear_extension_scale_factors::Float64
 
 for tstep::Int64 in 2:n_timesteps
-    # Only re-scale if total cover is above a given threshold
-    lin_ext_scale_factors = if sum(C_cover[tstep-1, :, :]) < scale_threshold
+    # Apply scale factor to linear_extension when cover is above scale_threshold to account
+    # for spatial competition when population density is high
+    linear_extension_scale_factors = if sum(C_cover[tstep-1, :, :]) < scale_threshold
         1
     else
         linear_extension_scale_factors(
@@ -117,16 +120,19 @@ for tstep::Int64 in 2:n_timesteps
         )
     end
 
-    # Use scale factor to calculate growth rate
-    growth_rate::Matrix{Float64} = linear_extensions .* lin_ext_scale_factors
+    # Use scale factor to calculate growth to account for spatial competition, as explained
+    growth_rate::Matrix{Float64} = linear_extensions .* linear_extension_scale_factors
 
     # Mock recruits proportional to each functional group's cover and available space
+    # This mock is for example purposes only
     available_space::Float64 = habitable_area - sum(C_cover[tstep-1, :, :])
     available_proportion::Float64 = available_space / habitable_area
     adults_cover::Vector{Float64} = dropdims(sum(C_cover[tstep-1, :, 2:end], dims=2), dims=2)
 
     recruits_weights::Vector{Float64} = [0.6, 0.9, 1.5]
     availability_weight::Float64 = log(2.5, 1.5 + available_proportion)
+
+    # In reality, recruits cover for each functional group would come from a fecundity model
     recruits::Vector{Float64} = adults_cover .* recruits_weights .* availability_weight
 
     # Perform timestep
@@ -142,7 +148,7 @@ for tstep::Int64 in 2:n_timesteps
 end
 ```
 
-The `lin_ext_scale_factors` calculated at each timestep prevents the corals from outgrowing
+The `linear_extension_scale_factors` calculated at each timestep prevents the corals from outgrowing
 the habitable area, taking into account the simultaneous growth across all functional groups
 and size classes. Details about how this scale factor is calculated and used can be
 found below.
