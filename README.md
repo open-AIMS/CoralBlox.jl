@@ -121,9 +121,13 @@ for tstep::Int64 in 2:n_timesteps
     growth_rate::Matrix{Float64} = linear_extensions .* lin_ext_scale_factors
 
     # Mock recruits proportional to each functional group's cover and available space
-    available_frac::Float64 = (habitable_area - sum(C_cover[tstep-1, :, :])) / habitable_area
+    available_space::Float64 = habitable_area - sum(C_cover[tstep-1, :, :])
+    available_proportion::Float64 = available_space / habitable_area
     adults_cover::Vector{Float64} = dropdims(sum(C_cover[tstep-1, :, 2:end], dims=2), dims=2)
-    recruits::Vector{Float64} = adults_cover .* [0.6, 0.9, 1.5] .* log(2.5, 1.5 + available_frac)
+
+    recruits_weights::Vector{Float64} = [0.6, 0.9, 1.5]
+    availability_weight::Float64 = log(2.5, 1.5 + available_proportion)
+    recruits::Vector{Float64} = adults_cover .* recruits_weights .* availability_weight
 
     # Perform timestep
     timestep!(
