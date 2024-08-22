@@ -460,6 +460,9 @@ function transfer_and_grow!(
     prev_growth_rate::Float64,
     next_growth_rate::Float64,
 )::Nothing
+    if prev_growth_rate == 0.0
+        return nothing
+    end
 
     transfer_blocks!(
         prev_class,
@@ -479,6 +482,9 @@ function transfer_and_grow!(
     terminal::TerminalClass,
     growth_rate::Float64,
 )::Nothing
+    if growth_rate == 0.0
+        return nothing
+    end
 
     transfer_blocks!(
         prev_class,
@@ -579,14 +585,16 @@ function timestep!(
         )
     end
 
-    merge_transfer!(
-        functional_group.size_classes[1],
-        functional_group.size_classes[2],
-        growth_rate[1],
-        growth_rate[2]
-    )
-    _apply_internal_growth!(functional_group.size_classes[1], growth_rate[1])
-    remove_outgrown!(functional_group.size_classes[1])
+    if growth_rate[1] != 0.0
+        merge_transfer!(
+            functional_group.size_classes[1],
+            functional_group.size_classes[2],
+            growth_rate[1],
+            growth_rate[2]
+        )
+        _apply_internal_growth!(functional_group.size_classes[1], growth_rate[1])
+        remove_outgrown!(functional_group.size_classes[1])
+    end
 
     # Add recruits cover block only when there are recruits
     if recruits > 0.0
