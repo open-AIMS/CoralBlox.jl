@@ -5,18 +5,28 @@ version = "1.0.1"
 
 [deps]
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-YAXArrays = "c21b50f5-aa40-41ea-b809-c0f5e47bfa5c"
-
-[compat]
-DataStructures = "0.18.20"
-YAXArrays = "0.5.8"
-julia = "1"
 
 [weakdeps]
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
+Zarr = "0a941bbe-ad1d-11e8-39d9-ab76183a1d99"
 
 [extensions]
 CoralBloxPlotExt = "Makie"
+SensitivityAnalysisExt = [
+    "DataFrames",
+    "Distributed",
+    "Distributions",
+    "ProgressMeter",
+    "Zarr"
+]
+
+[compat]
+DataStructures = "0.18.20"
+julia = "1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
