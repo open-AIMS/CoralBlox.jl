@@ -3,8 +3,9 @@
     max_projected_cover(linear_extensions::Matrix{Float64}, bin_edges::Matrix{Float64}, habitable_areas::Vector{Float64})
 
 Finds the maximum projected cover for each location considering that all habitable area is
-concentrated in the in the last size class of the "worst case scenario" functional group,
-and that it grows by that functional group's linear extension.
+concentrated on a single size class and functional group and that it grows by that
+functional group's linear extension. To choose which combination of functional group and
+size class all combinations are tested.
 
 # Arguments
 - `linear_extensions` : Functional Groups x Size Classes
@@ -29,12 +30,9 @@ end
 function _diameter_coef(
     linear_extensions::Matrix{Float64}, bin_edges::Matrix{Float64}
 )::Float64
-    last_linear_extensions::Vector{Float64} = linear_extensions[:, end-1]
-    last_C_bins::Vector{Float64} = bin_edges[:, end-1]
-    max_diameter_idx::Int64 = findmax(last_linear_extensions .+ last_C_bins)[2]
-    last_upper_bound::Float64 = last_C_bins[max_diameter_idx]
-    last_linear_extension::Float64 = last_linear_extensions[max_diameter_idx]
-    return ((last_upper_bound + last_linear_extension)^2) / (last_upper_bound^2)
+    size_class_coefs = ((bin_edges[:, 2:end-1] .+ linear_extensions[:, 1:end-1]) .^ 2) ./
+                       (bin_edges[:, 2:end-1] .^ 2)
+    return findmax(size_class_coefs)[1]
 end
 
 """
