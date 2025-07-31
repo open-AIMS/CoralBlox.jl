@@ -572,7 +572,7 @@ function timestep!(
     transfer_and_grow!(
         functional_group.size_classes[end],
         functional_group.terminal_class,
-        growth_rate[end]
+        growth_rate[end-1]
     )
 
     n_classes::Int64 = length(functional_group.size_classes)
