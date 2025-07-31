@@ -1,4 +1,94 @@
 module CoralBloxPlotExt
+
+using CoralBlox
+using Makie
+using Makie: Colors
+
+include("./utils.jl")
+
+function CoralBlox.Plot.functional_group(functional_group::CoralBlox.FunctionalGroup)
+    fig = Figure(size=(800, 800))
+    CoralBlox.Plot.functional_group!(fig[1, 1], functional_group)
+    return fig
+end
+function CoralBlox.Plot.functional_group!(
+    gp::GridPosition,
+    functional_group::CoralBlox.FunctionalGroup;
+    axis_opts=Dict(),
+    opts=Dict()
+)::Nothing
+    xticks = vcat(
+        getproperty.(functional_group.size_classes, :lower_bound),
+        functional_group.terminal_class.lower_bound,
+        functional_group.terminal_class.upper_bound
+    )
+
+    x_limits = extrema(xticks)
+
+    ax = Axis(
+        gp;
+        limits=(x_limits, nothing),
+        xticks=xticks,
+        xticklabelrotation=π / 4,
+        xscale=log10,
+        axis_opts...
+    )
+
+    hue = pop!(opts, :hues, 0.0)
+    n_size_classes = length(functional_group.size_classes) + 1
+    saturations = range(1, 0.4, ; length=n_size_classes)
+    values = range(0.5, 0.9, ; length=n_size_classes)
+    colors = [Colors.HSV(hue, s, v) for (s, v) in zip(saturations, values)]
+
+    for (idx_sc, sc) in enumerate(functional_group.size_classes)
+        if isempty(sc.block_densities)
+            continue
+        end
+        block_lb = sc.block_lower_bounds
+        block_ub = sc.block_upper_bounds
+        block_densities = round.(sc.block_densities, digits=2)
+        n_blocks = length(block_densities)
+        band!.(
+            ax,
+            collect.(vcat(zip(block_lb, block_ub)...)),
+            collect.(vcat(zip(zeros(n_blocks), zeros(n_blocks))...)),
+            collect.(vcat(zip(block_densities, block_densities)...));
+            color=colors[idx_sc],
+        )
+    end
+
+    # Plot terminal size class separately
+    tsc = functional_group.terminal_class
+    band!(
+        ax,
+        [tsc.lower_bound, tsc.upper_bound],
+        0.0,
+        tsc.density;
+        color=colors[end],
+    )
+
+
+    return nothing
+end
+
+function CoralBlox.Plot.functional_groups(functional_groups::Vector{CoralBlox.FunctionalGroup})
+    fig = Figure(size=(800, 800))
+    grid_pos = grid_positions(length(functional_groups))
+
+    n_groups = length(functional_groups)
+    hues = ((2 * π / n_groups) .* (1:n_groups)) .* (360 / 2π)
+
+    for (i, fgroup) in enumerate(functional_groups)
+        opts = Dict(:hues => hues[i])
+        CoralBlox.Plot.functional_group!(
+            fig[grid_pos[i]...],
+            fgroup;
+            opts=opts
+        )
+    end
+    return fig
+end
+
 end
 #using CoralBlox
 #import CoralBlox.blocks_model: CoverBlock
