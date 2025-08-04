@@ -59,25 +59,34 @@ function linear_extension_scale_factors(
     bin_edges::AbstractMatrix{Float64},
     max_projected_cover::Float64
 )::Float64
-    total_cover::Float64 = sum(C_cover_t)
+    # Target here refers to all size classes except the last one of each functional group
+    # since these don't grow
+    target_linear_extensions = @view linear_extensions[:, 1:end-1]
+    target_bin_edges = @view bin_edges[:, 1:end-1]
+    target_C_cover_t = @view C_cover_t[:, 1:end-1]
+
+    total_cover::Float64 = sum(target_C_cover_t)
 
     # Average density for each functional group and size class
-    size_class_densities::Matrix{Float64} = _size_class_densities(C_cover_t, bin_edges)
+    size_class_densities::Matrix{Float64} = _size_class_densities(target_C_cover_t, target_bin_edges)
 
     # Projected coral cover at t+1
     projected_cover::Float64 = _projected_cover(
-        size_class_densities, linear_extensions, bin_edges
+        size_class_densities, target_linear_extensions, target_bin_edges
     )
 
     adjusted_projected_cover::Float64 = _adjusted_projected_cover(
-        total_cover, projected_cover, max_projected_cover, habitable_area
+        total_cover,
+        projected_cover,
+        max_projected_cover - total_cover,
+        habitable_area - total_cover
     )
 
     # Solve quadratic equation
-    a::Float64 = _quadratic_coeff(size_class_densities, linear_extensions, Δd(bin_edges, 1))
-    b::Float64 = _linear_coeff(size_class_densities, linear_extensions, Δd(bin_edges, 2))
+    a::Float64 = _quadratic_coeff(size_class_densities, target_linear_extensions, Δd(target_bin_edges, 1))
+    b::Float64 = _linear_coeff(size_class_densities, target_linear_extensions, Δd(target_bin_edges, 2))
     c::Float64 = _constant_coeff(
-        size_class_densities, adjusted_projected_cover, Δd(bin_edges, 3)
+        size_class_densities, adjusted_projected_cover, Δd(target_bin_edges, 3)
     )
 
     return (sqrt((b^2) - (4 * a * c)) - (b)) / (2 * a)
@@ -89,43 +98,13 @@ function linear_extension_scale_factors(
     bin_edges::AbstractMatrix{Float64},
     max_projected_cover::AbstractVector{Float64}
 )::AbstractVector{Float64}
-    # This is assuming the last functional group doesn't grow. For more details read this
-    # function's docstring
-    loc_C_cover_not_growable = dropdims(sum(C_cover_t[:, end, :], dims=1), dims=1)
-    C_cover_t_growable = C_cover_t[:, 1:end-1, :]
-
-    # Total cover for each location
-    loc_C_cover::Vector{Float64} = dropdims(sum(C_cover_t_growable, dims=(1, 2)); dims=(1, 2))
-
-    # Average density for each functional group, size class and location
-    size_class_densities::Array{Float64,3} = _size_class_densities(
-        C_cover_t_growable, bin_edges[:, 1:end-1]
+    linear_extension_scale_factors.(
+        eachslice(C_cover_t, dims=3),
+        loc_habitable_areas,
+        Ref(linear_extensions),
+        Ref(bin_edges),
+        max_projected_cover
     )
-
-    # Projected coral cover for each location at t+1
-    projected_cover::Vector{Float64} = _projected_cover(
-        size_class_densities, linear_extensions[:, 1:end-1], bin_edges[:, 1:end-1]
-    )
-
-    adjusted_projected_cover::Vector{Float64} = _adjusted_projected_cover(
-        loc_C_cover,
-        projected_cover,
-        max_projected_cover .- loc_C_cover_not_growable,
-        loc_habitable_areas .- loc_C_cover_not_growable
-    )
-
-    # Solve quadratic equation
-    a::Vector{Float64} = _quadratic_coeff(
-        size_class_densities, linear_extensions[:, 1:end-1], Δd(bin_edges[:, 1:end-1], 1)
-    )
-    b::Vector{Float64} = _linear_coeff(
-        size_class_densities, linear_extensions[:, 1:end-1], Δd(bin_edges[:, 1:end-1], 2)
-    )
-    c::Vector{Float64} = _constant_coeff(
-        size_class_densities, adjusted_projected_cover, Δd(bin_edges[:, 1:end-1], 3)
-    )
-
-    return (sqrt.((b .^ 2) .- (4 .* a .* c)) .- (b)) ./ (2 .* a)
 end
 
 Δd(
