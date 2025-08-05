@@ -66,6 +66,7 @@ function linear_extension_scale_factors(
     target_C_cover_t = @view C_cover_t[:, 1:end-1]
 
     total_cover::Float64 = sum(target_C_cover_t)
+    non_target_total_cover = sum(C_cover_t[:, end])
 
     # Average density for each functional group and size class
     size_class_densities::Matrix{Float64} = _size_class_densities(target_C_cover_t, target_bin_edges)
@@ -78,8 +79,8 @@ function linear_extension_scale_factors(
     adjusted_projected_cover::Float64 = _adjusted_projected_cover(
         total_cover,
         projected_cover,
-        max_projected_cover - total_cover,
-        habitable_area - total_cover
+        max_projected_cover - non_target_total_cover,
+        habitable_area - non_target_total_cover
     )
 
     # Solve quadratic equation
