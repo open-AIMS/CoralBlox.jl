@@ -6,16 +6,16 @@ using Makie: Colors
 
 include("./utils.jl")
 
-function CoralBlox.Plot.functional_group(functional_group::CoralBlox.FunctionalGroup)
+function CoralBlox.Viz.functional_group(functional_group::CoralBlox.FunctionalGroup)
     fig = Figure(size=(800, 800))
-    CoralBlox.Plot.functional_group!(fig[1, 1], functional_group)
+    CoralBlox.Viz.functional_group!(fig[1, 1], functional_group)
     return fig
 end
-function CoralBlox.Plot.functional_group!(
+function CoralBlox.Viz.functional_group!(
     gp::GridPosition,
     functional_group::CoralBlox.FunctionalGroup;
-    axis_opts=Dict(),
-    opts=Dict()
+    axis_opts::Dict{Symbol,Any}=Dict{Symbol,Any}(),
+    opts::Dict{Symbol,Any}=Dict{Symbol,Any}()
 )::Nothing
     xticks = vcat(
         getproperty.(functional_group.size_classes, :lower_bound),
@@ -24,10 +24,11 @@ function CoralBlox.Plot.functional_group!(
     )
 
     x_limits = extrema(xticks)
+    y_limits = pop!(axis_opts, :ylimits, nothing)
 
     ax = Axis(
         gp;
-        limits=(x_limits, nothing),
+        limits=(x_limits, y_limits),
         xticks=xticks,
         xticklabelrotation=π / 4,
         xscale=log10,
@@ -71,21 +72,46 @@ function CoralBlox.Plot.functional_group!(
     return nothing
 end
 
-function CoralBlox.Plot.functional_groups(functional_groups::Vector{CoralBlox.FunctionalGroup})
-    fig = Figure(size=(800, 800))
+"""
+
+# Arguments
+
+- `axis_opts` : Accepted options are:
+    - `:ylimits` : y-axis limits, defaults to `nothing`
+    - `:titles` : titles for each functional group, defaults to `Functional Group i`
+    - ``
+"""
+function CoralBlox.Viz.functional_groups(
+    functional_groups::Vector{CoralBlox.FunctionalGroup};
+    fig_opts::Dict{Symbol,Any}=Dict{Symbol,Any}(),
+    axis_opts::Dict{Symbol,Any}=Dict{Symbol,Any}(),
+    opts::Dict{Symbol,Any}=Dict{Symbol,Any}(),
+)
+
+    fig_size = pop!(fig_opts, :size, (800, 800))
+    fig = Figure(size=fig_size)
+
     grid_pos = grid_positions(length(functional_groups))
 
     n_groups = length(functional_groups)
     hues = ((2 * π / n_groups) .* (1:n_groups)) .* (360 / 2π)
-
+    axis_titles = pop!(axis_opts, :titles, nothing)
     for (i, fgroup) in enumerate(functional_groups)
-        opts = Dict(:hues => hues[i])
-        CoralBlox.Plot.functional_group!(
+        opts[:hues] = hues[i]
+
+        axis_opts[:title] = isnothing(axis_titles) ? "Functional Group $(i)" : axis_titles[i]
+        CoralBlox.Viz.functional_group!(
             fig[grid_pos[i]...],
             fgroup;
+            axis_opts=deepcopy(axis_opts),
             opts=opts
         )
     end
+
+    fig_title = pop!(fig_opts, :title, "Functional Groups")
+    fig_title_size = pop!(fig_opts, :title_size, 26)
+    Label(fig[0, :], fig_title, fontsize=fig_title_size)
+
     return fig
 end
 
@@ -113,7 +139,7 @@ end
 #"""
 #This function will plot one figure for each timestep
 #"""
-#function CoralBlox.Plot.plot_size_class(size_classes::Matrix{SizeClass}, timestep::Int64)
+#function CoralBlox.Viz.plot_size_class(size_classes::Matrix{SizeClass}, timestep::Int64)
 #    f = Figure(; size=(1600, 1600))
 #    n_species, n_bins = size(size_classes)
 #    x = [1, 1, 2, 2, 3, 3]
@@ -149,7 +175,7 @@ end
 #    return nothing
 #end
 #
-# #function CoralBlox.Plot.plot_taxa(cover::Array{Float64, 3})
+# #function CoralBlox.Viz.plot_taxa(cover::Array{Float64, 3})
 #    # cover_t = dropdims(sum(cover, dims=3), dims=3) ./ 48671.0938
 #    # colors = [:red, :green, :blue, :purple, :yellow]
 # #
@@ -175,7 +201,7 @@ end
 #    # return f
 # #end
 # #
-# #function CoralBlox.Plot.plot_size_classes(cover, species, name)
+# #function CoralBlox.Viz.plot_size_classes(cover, species, name)
 # #
 #    # cover = cover ./ 48671.0938
 # #
@@ -207,7 +233,7 @@ end
 #    # return f
 # #end
 # #
-# #function CoralBlox.Plot.plot_total_cover(cover)
+# #function CoralBlox.Viz.plot_total_cover(cover)
 #    # total_cover = dropdims(sum(cover, dims=(2, 3)), dims=(2, 3)) ./ 48671.0938
 # #
 #    # f = Figure()

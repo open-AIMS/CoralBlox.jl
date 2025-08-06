@@ -1,4 +1,4 @@
-module Plot
+module Viz
 function functional_group() end
 function functional_group!() end
 
