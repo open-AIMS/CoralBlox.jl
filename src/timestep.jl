@@ -14,12 +14,8 @@ struct SizeClass
     movement_cache::MVector{3,Float64}
 end
 
-
 function SizeClass(
-    lower_bound::Float64,
-    upper_bound::Float64,
-    cover::Float64;
-    capacity::Int64=256
+    lower_bound::Float64, upper_bound::Float64, cover::Float64; capacity::Int64=256
 )::SizeClass
     area_factor::Float64 = π / 12 * (upper_bound^3 - lower_bound^3)
     density::Float64 = cover / area_factor
@@ -46,7 +42,7 @@ function SizeClass(
         block_upper_bounds,
         block_densities,
         buf_new,
-        cache
+        cache,
     )
 end
 
@@ -75,7 +71,6 @@ mutable struct TerminalClass
     end
 end
 
-
 struct FunctionalGroup
     size_classes::Vector{SizeClass}
     terminal_class::TerminalClass
@@ -84,7 +79,7 @@ end
 function FunctionalGroup(
     lower_bounds::AbstractVector{Float64},
     upper_bounds::AbstractVector{Float64},
-    cover::AbstractVector{Float64}
+    cover::AbstractVector{Float64},
 )::FunctionalGroup
     num_sc = length(lower_bounds[1:end-1])
     size_classes::Vector{SizeClass} = Vector(undef, num_sc)
@@ -98,6 +93,8 @@ function FunctionalGroup(
         size_classes,
         terminal_class
     )
+
+    return FunctionalGroup(size_classes, terminal_class)
 end
 
 function Base.show(io::IO, mime::MIME"text/plain", fg::FunctionalGroup)::Nothing
@@ -145,13 +142,15 @@ end
 
 function reuse_buffers!(
     functional_groups::Vector{FunctionalGroup},
-    cover::Union{Matrix{Float64},SubArray{Float64,2}}
+    cover::Union{Matrix{Float64}, SubArray{Float64, 2}},
 )::Vector{FunctionalGroup}
     reuse_buffers!.(functional_groups, eachrow(cover))
     return functional_groups
 end
-function reuse_buffers!(functional_group::FunctionalGroup, cover::AbstractVector{Float64})::FunctionalGroup
-    reuse_buffers!.(functional_group.size_classes, cover[1:end-1])
+function reuse_buffers!(
+    functional_group::FunctionalGroup, cover::AbstractVector{Float64}
+)::FunctionalGroup
+    reuse_buffers!.(functional_group.size_classes, cover[1:(end - 1)])
 
     area_factor::Float64 = average_area(functional_group.terminal_class)
     density::Float64 = cover[end] / area_factor
@@ -183,7 +182,7 @@ Apply mortality/survival probability to coral densities in blocks.
 """
 function apply_mortality!(
     functional_groups::Vector{FunctionalGroup},
-    survival_rate::Union{Matrix{Float64},SubArray{Float64,2}}
+    survival_rate::Union{Matrix{Float64}, SubArray{Float64, 2}},
 )::Nothing
     @inbounds for i in axes(survival_rate, 1)
         survival_slice = @view survival_rate[i, :]
@@ -195,7 +194,7 @@ function apply_mortality!(
 end
 function apply_mortality!(
     functional_group::FunctionalGroup,
-    survival_rate::Union{Vector{Float64},SubArray{Float64,1}}
+    survival_rate::Union{Vector{Float64}, SubArray{Float64, 1}},
 )::Nothing
     for sc in 1:length(functional_group.size_classes)-1
         apply_mortality!(functional_group.size_classes[sc], survival_rate[sc])
@@ -218,8 +217,7 @@ end
 Move coral blocks within size classes. Constrain blocks within bounds of size class.
 """
 function _apply_internal_growth!(
-    functional_group::FunctionalGroup,
-    growth_rates::Vector{Float64}
+    functional_group::FunctionalGroup, growth_rates::Vector{Float64}
 )::Nothing
     _apply_internal_growth!.(functional_group.size_classes, growth_rates)
     return nothing
@@ -231,7 +229,7 @@ function _apply_internal_growth!(size_class::SizeClass, growth_rate::Float64)::N
 
     # Grow upper bounds and clamp bounds by upper bound of size class
     class_upper_bound::Float64 = size_class.upper_bound
-    for block_idx in 1:n_blocks(size_class)
+    for block_idx ∈ 1:n_blocks(size_class)
         if size_class.block_upper_bounds[block_idx] < class_upper_bound
             break
         end
@@ -260,10 +258,7 @@ end
 Calculate the density added to the terminal size class from the smaller size class.
 """
 function added_block_density(
-    size_class::SizeClass,
-    terminal::TerminalClass,
-    block_idx::Int64,
-    growth_rate::Float64
+    size_class::SizeClass, terminal::TerminalClass, block_idx::Int64, growth_rate::Float64
 )::Float64
     block_lb::Float64 = size_class.block_lower_bounds[block_idx]
     block_ub::Float64 = size_class.block_upper_bounds[block_idx]
@@ -272,7 +267,7 @@ function added_block_density(
     coral_count::Float64 = n_corals(
         max(block_lb + growth_rate, terminal.lower_bound),
         block_ub + growth_rate,
-        block_density
+        block_density,
     )
     added_density::Float64 = coral_count / (terminal.upper_bound - terminal.lower_bound)
 
@@ -287,14 +282,14 @@ Remove cover blocks that have outgrown the size class.
 function remove_outgrown!(size_class::SizeClass)::Nothing
     upper_bound::Float64 = size_class.upper_bound
     n_to_remove::Int64 = 0
-    for block_lb in size_class.block_lower_bounds
+    for block_lb ∈ size_class.block_lower_bounds
         if block_lb < upper_bound
             break
         end
         n_to_remove += 1
     end
 
-    for _ in 1:n_to_remove
+    for _ ∈ 1:n_to_remove
         popfirst!(size_class.block_lower_bounds)
         popfirst!(size_class.block_upper_bounds)
         popfirst!(size_class.block_densities)
@@ -312,7 +307,7 @@ function crossedge_displacement(
     bound::Float64,
     upper_bound::Float64,
     prev_growth_rate::Float64,
-    next_growth_rate::Float64
+    next_growth_rate::Float64,
 )::Float64
     time_to_bound::Float64 = (upper_bound - bound) / prev_growth_rate
     return time_to_bound * prev_growth_rate + (1 - time_to_bound) * next_growth_rate
@@ -325,7 +320,7 @@ end
 Add new cover block to the given size class. Resize the size class if the buffer is already
 full.
 """
-function add_block!(size_class::SizeClass, block_attrs::SubArray{Float64,1})
+function add_block!(size_class::SizeClass, block_attrs::SubArray{Float64, 1})
     # Reallocate excess memory if buffers are full
     if size_class.block_densities.capacity == size_class.block_densities.length
         new_current_capacity::Int64 = size_class.block_densities.capacity + 32
@@ -383,25 +378,32 @@ function calculate_new_block!(
     block_density::Float64,
     next_class::SizeClass,
     prev_growth_rate::Float64,
-    next_growth_rate::Float64
-)::Tuple{Float64,Float64,Float64}
+    next_growth_rate::Float64,
+)::Tuple{Float64, Float64, Float64}
     # Check if the lower bound outgrows the upper bound as well
     outgrowing_lb::Bool = block_lb > (next_class.lower_bound - prev_growth_rate)
 
     # Calculate bounds and density of new cover block
     new_lower_bound::Float64 = (
-        !outgrowing_lb ? next_class.lower_bound : block_lb + crossedge_displacement(
+        if !outgrowing_lb
+            next_class.lower_bound
+        else
+            block_lb + crossedge_displacement(
             block_lb, next_class.lower_bound, prev_growth_rate, next_growth_rate
         )
+        end
     )
 
-    new_upper_bound::Float64 = block_ub + crossedge_displacement(
-        block_ub, next_class.lower_bound, prev_growth_rate, next_growth_rate
-    )
+    new_upper_bound::Float64 =
+        block_ub + crossedge_displacement(
+            block_ub, next_class.lower_bound, prev_growth_rate, next_growth_rate
+        )
 
-    proportion_moving::Float64 = outgrowing_lb ? 1.0 : 1.0 - (
-        (next_class.lower_bound - (block_lb + prev_growth_rate)) / (block_ub - block_lb)
-    )
+    proportion_moving::Float64 = if outgrowing_lb
+        1.0
+    else
+        1.0 - ((next_class.lower_bound - (block_lb + prev_growth_rate)) / (block_ub - block_lb))
+    end
 
     # New Density = (number of corals * proportion moving)
     n_corals_moving::Float64 = block_density * (block_ub - block_lb) * proportion_moving
@@ -420,12 +422,12 @@ function transfer_blocks!(
     prev_class::SizeClass,
     next_class::SizeClass,
     prev_growth_rate::Float64,
-    next_growth_rate::Float64
+    next_growth_rate::Float64,
 )::Nothing
 
     # Blocks that exceed this bound will move to the next size class
     moving_bound::Float64 = prev_class.upper_bound - prev_growth_rate
-    for block_idx in 1:n_blocks(prev_class)
+    for block_idx ∈ 1:n_blocks(prev_class)
         # Skip blocks that are not migrating
         if prev_class.block_upper_bounds[block_idx] <= moving_bound
             break
@@ -436,7 +438,7 @@ function transfer_blocks!(
             prev_class.block_densities[block_idx],
             next_class,
             prev_growth_rate,
-            next_growth_rate
+            next_growth_rate,
         )
         add_block!(next_class, @view(prev_class.movement_cache[1:3]))
     end
@@ -444,16 +446,14 @@ function transfer_blocks!(
     return nothing
 end
 function transfer_blocks!(
-    prev_class::SizeClass,
-    terminal::TerminalClass,
-    growth_rate::Float64
+    prev_class::SizeClass, terminal::TerminalClass, growth_rate::Float64
 )::Nothing
     # Blocks that exceed this bound will move to the next size class
     moving_bound::Float64 = prev_class.upper_bound - growth_rate
 
     # Accumulate density to add to terminal class
     additional_density::Float64 = 0.0
-    for block_idx in 1:n_blocks(prev_class)
+    for block_idx ∈ 1:n_blocks(prev_class)
         # Skip blocks that are not migrating
         if prev_class.block_upper_bounds[block_idx] <= moving_bound
             continue
@@ -478,12 +478,7 @@ function transfer_and_grow!(
         return nothing
     end
 
-    transfer_blocks!(
-        prev_class,
-        next_class,
-        prev_growth_rate,
-        next_growth_rate
-    )
+    transfer_blocks!(prev_class, next_class, prev_growth_rate, next_growth_rate)
 
     # Grow corals in size classes
     _apply_internal_growth!(prev_class, prev_growth_rate)
@@ -492,19 +487,13 @@ function transfer_and_grow!(
     return nothing
 end
 function transfer_and_grow!(
-    prev_class::SizeClass,
-    terminal::TerminalClass,
-    growth_rate::Float64,
+    prev_class::SizeClass, terminal::TerminalClass, growth_rate::Float64
 )::Nothing
     if growth_rate == 0.0
         return nothing
     end
 
-    transfer_blocks!(
-        prev_class,
-        terminal,
-        growth_rate
-    )
+    transfer_blocks!(prev_class, terminal, growth_rate)
 
     # Grow corals in size classes
     _apply_internal_growth!(prev_class, growth_rate)
@@ -524,14 +513,14 @@ function merge_transfer!(
     smallest_class::SizeClass,
     next_class::SizeClass,
     smallest_growth_rate::Float64,
-    next_growth_rate::Float64
+    next_growth_rate::Float64,
 )::Nothing
     lower_bound_condition::Float64 = smallest_class.upper_bound - smallest_growth_rate
 
     # Migrate blocks that do not give identical new blocks
     final_index::Int64 = 0
     early_exit::Bool = false
-    for block_idx in 1:n_blocks(smallest_class)
+    for block_idx ∈ 1:n_blocks(smallest_class)
         if smallest_class.block_lower_bounds[block_idx] <= lower_bound_condition
             final_index = block_idx
             early_exit = true
@@ -543,12 +532,9 @@ function merge_transfer!(
             smallest_class.block_densities[block_idx],
             next_class,
             smallest_growth_rate,
-            next_growth_rate
+            next_growth_rate,
         )
-        add_block!(
-            next_class,
-            @view(smallest_class.movement_cache[1:3])
-        )
+        add_block!(next_class, @view(smallest_class.movement_cache[1:3]))
     end
 
     if !early_exit
@@ -563,7 +549,7 @@ function merge_transfer!(
         next_class,
         smallest_class.upper_bound,
         smallest_class.upper_bound + next_growth_rate,
-        new_density
+        new_density,
     )
     return nothing
 end
@@ -578,23 +564,23 @@ end
 function timestep!(
     functional_group::FunctionalGroup,
     recruits::Float64,
-    growth_rate::SubArray{Float64,1},
-    survival_rate::SubArray{Float64,1}
+    growth_rate::SubArray{Float64, 1},
+    survival_rate::SubArray{Float64, 1},
 )::Nothing
     apply_mortality!(functional_group, survival_rate)
 
     transfer_and_grow!(
         functional_group.size_classes[end],
         functional_group.terminal_class,
-        growth_rate[end-1]
+        growth_rate[end - 1],
     )
 
     n_classes::Int64 = length(functional_group.size_classes)
     @inbounds for size_idx in n_classes:-1:3
         transfer_and_grow!(
-            functional_group.size_classes[size_idx-1],
+            functional_group.size_classes[size_idx - 1],
             functional_group.size_classes[size_idx],
-            growth_rate[size_idx-1],
+            growth_rate[size_idx - 1],
             growth_rate[size_idx],
         )
     end
@@ -604,7 +590,7 @@ function timestep!(
             functional_group.size_classes[1],
             functional_group.size_classes[2],
             growth_rate[1],
-            growth_rate[2]
+            growth_rate[2],
         )
         _apply_internal_growth!(functional_group.size_classes[1], growth_rate[1])
         remove_outgrown!(functional_group.size_classes[1])
@@ -639,30 +625,28 @@ end
     coral_cover(size_class::SizeClass)::Float64
 """
 function coral_cover(
-    functional_group::Vector{FunctionalGroup},
-    C_cover::SubArray{Float64,2}
+    functional_group::Vector{FunctionalGroup}, C_cover::SubArray{Float64, 2}
 )::Nothing
     coral_cover.(functional_group, eachrow(C_cover))
 
     return nothing
 end
 function coral_cover(
-    functional_group::FunctionalGroup,
-    C_cover::SubArray{Float64,1}
+    functional_group::FunctionalGroup, C_cover::SubArray{Float64, 1}
 )::Nothing
-    C_cover[1:end-1] .= coral_cover.(functional_group.size_classes)
-    C_cover[end] = functional_group.terminal_class.density * average_area(
-        functional_group.terminal_class
-    )
+    C_cover[1:(end - 1)] .= coral_cover.(functional_group.size_classes)
+    C_cover[end] =
+        functional_group.terminal_class.density *
+        average_area(functional_group.terminal_class)
     return nothing
 end
 function coral_cover(size_class::SizeClass)::Float64
     cover::Float64 = 0.0
     #? I think we could broadcast this operation
-    for i in 1:n_blocks(size_class)
-        cover += size_class.block_densities[i] * π / 12 * (
-            size_class.block_upper_bounds[i]^3 - size_class.block_lower_bounds[i]^3
-        )
+    for i ∈ 1:n_blocks(size_class)
+        cover +=
+            size_class.block_densities[i] * π / 12 *
+            (size_class.block_upper_bounds[i]^3 - size_class.block_lower_bounds[i]^3)
     end
 
     return cover

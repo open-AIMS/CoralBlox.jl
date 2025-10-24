@@ -1,5 +1,4 @@
-module CoralBloxPlotExt
-end
+module CoralBloxPlotExt end
 #using CoralBlox
 #import CoralBlox.blocks_model: CoverBlock
 #import CoralBlox.blocks_model: SizeClass
