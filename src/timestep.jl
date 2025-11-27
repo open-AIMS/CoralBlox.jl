@@ -612,7 +612,9 @@ function timestep!(
     growth_rate::Matrix{Float64},
     survival_rate::Matrix{Float64}
 )::Nothing
-    timestep!.(functional_groups, recruitment, eachrow(growth_rate), eachrow(survival_rate))
+    for r in axes(growth_rate, 1)
+        timestep!(functional_groups[r], recruitment[r], @view(growth_rate[r, :]), @view(survival_rate[r, :]))
+    end
 
     return nothing
 end
