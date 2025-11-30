@@ -1,3 +1,4 @@
+using StaticArrays
 using DataStructures: CircularBuffer
 
 struct SizeClass
@@ -10,7 +11,7 @@ struct SizeClass
 
     # Caches
     buf_new::Vector{Float64}
-    movement_cache::Vector{Float64}  # 3 elements
+    movement_cache::MVector{3,Float64}
 end
 
 
@@ -37,7 +38,7 @@ function SizeClass(
     push!(block_densities, density)
 
     buf_new::Vector{Float64} = zeros(capacity)
-    cache::Vector{Float64} = zeros(3)
+    cache::MVector{3,Float64} = @MVector zeros(3)
     return SizeClass(
         lower_bound,
         upper_bound,
@@ -85,7 +86,12 @@ function FunctionalGroup(
     upper_bounds::AbstractVector{Float64},
     cover::AbstractVector{Float64}
 )::FunctionalGroup
-    size_classes::Vector{SizeClass} = SizeClass.(lower_bounds[1:end-1], upper_bounds[1:end-1], cover[1:end-1])
+    num_sc = length(lower_bounds[1:end-1])
+    size_classes::Vector{SizeClass} = Vector(undef, num_sc)
+    for i in 1:num_sc
+        size_classes[i] = SizeClass(lower_bounds[i], upper_bounds[i], cover[i])
+    end
+
     terminal_class::TerminalClass = TerminalClass(lower_bounds[end], upper_bounds[end], cover[end])
 
     return FunctionalGroup(
@@ -186,7 +192,10 @@ function apply_mortality!(
     functional_group::FunctionalGroup,
     survival_rate::Union{Vector{Float64},SubArray{Float64,1}}
 )::Nothing
-    apply_mortality!.(functional_group.size_classes, survival_rate[1:end-1])
+    for sc in 1:length(functional_group.size_classes)-1
+        apply_mortality!(functional_group.size_classes[sc], survival_rate[sc])
+    end
+
     functional_group.terminal_class.density *= survival_rate[end]
 
     return nothing
@@ -612,7 +621,7 @@ function timestep!(
     growth_rate::Matrix{Float64},
     survival_rate::Matrix{Float64}
 )::Nothing
-    for r in axes(growth_rate, 1)
+    @inbounds for r in axes(growth_rate, 1)
         timestep!(functional_groups[r], recruitment[r], @view(growth_rate[r, :]), @view(survival_rate[r, :]))
     end
 
