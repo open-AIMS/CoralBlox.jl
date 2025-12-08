@@ -622,9 +622,9 @@ end
 
 function timestep!(
     functional_groups::Vector{FunctionalGroup},
-    recruitment::Vector{Float64},
-    growth_rate::Matrix{Float64},
-    survival_rate::Matrix{Float64}
+    recruitment::AbstractVector{Float64},
+    growth_rate::AbstractMatrix{Float64},
+    survival_rate::AbstractMatrix{Float64}
 )::Nothing
     @inbounds for r in axes(growth_rate, 1)
         timestep!(functional_groups[r], recruitment[r], @view(growth_rate[r, :]), @view(survival_rate[r, :]))
