@@ -99,13 +99,18 @@ function linear_extension_scale_factors(
     bin_edges::AbstractMatrix{Float64},
     max_projected_cover::AbstractVector{Float64}
 )::AbstractVector{Float64}
-    linear_extension_scale_factors.(
-        eachslice(C_cover_t, dims=3),
-        loc_habitable_areas,
-        Ref(linear_extensions),
-        Ref(bin_edges),
-        max_projected_cover
-    )
+    n = size(C_cover_t, 3)
+    result = Vector{Float64}(undef, n)
+    @views for i in 1:n
+        result[i] = linear_extension_scale_factors(
+            C_cover_t[:, :, i],
+            loc_habitable_areas[i],
+            linear_extensions,
+            bin_edges,
+            max_projected_cover[i]
+        )
+    end
+    return result
 end
 
 Δd(

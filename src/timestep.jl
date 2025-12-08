@@ -185,7 +185,12 @@ function apply_mortality!(
     functional_groups::Vector{FunctionalGroup},
     survival_rate::Union{Matrix{Float64},SubArray{Float64,2}}
 )::Nothing
-    apply_mortality!.(functional_groups, eachrow(survival_rate))
+    @inbounds for i in axes(survival_rate, 1)
+        survival_slice = @view survival_rate[i, :]
+        fg = functional_groups[i]
+        apply_mortality!(fg, survival_slice)
+    end
+
     return nothing
 end
 function apply_mortality!(
