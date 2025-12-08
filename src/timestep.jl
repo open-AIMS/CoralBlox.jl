@@ -556,7 +556,7 @@ function merge_transfer!(
     end
     # The width of new blocks is always next_growth_rate. So we need only add densities and
     # adjust for new width
-    new_density::Float64 = sum(smallest_class.block_densities[final_index:end])
+    @inbounds new_density::Float64 = sum(smallest_class.block_densities[final_index:end])
     new_density *= smallest_growth_rate / next_growth_rate
 
     add_block!(
@@ -590,7 +590,7 @@ function timestep!(
     )
 
     n_classes::Int64 = length(functional_group.size_classes)
-    for size_idx in n_classes:-1:3
+    @inbounds for size_idx in n_classes:-1:3
         transfer_and_grow!(
             functional_group.size_classes[size_idx-1],
             functional_group.size_classes[size_idx],
@@ -600,7 +600,7 @@ function timestep!(
     end
 
     if growth_rate[1] != 0.0
-        merge_transfer!(
+        @inbounds merge_transfer!(
             functional_group.size_classes[1],
             functional_group.size_classes[2],
             growth_rate[1],
