@@ -185,7 +185,12 @@ function apply_mortality!(
     functional_groups::Vector{FunctionalGroup},
     survival_rate::Union{Matrix{Float64},SubArray{Float64,2}}
 )::Nothing
-    apply_mortality!.(functional_groups, eachrow(survival_rate))
+    @inbounds for i in axes(survival_rate, 1)
+        survival_slice = @view survival_rate[i, :]
+        fg = functional_groups[i]
+        apply_mortality!(fg, survival_slice)
+    end
+
     return nothing
 end
 function apply_mortality!(
@@ -551,7 +556,7 @@ function merge_transfer!(
     end
     # The width of new blocks is always next_growth_rate. So we need only add densities and
     # adjust for new width
-    new_density::Float64 = sum(smallest_class.block_densities[final_index:end])
+    @inbounds new_density::Float64 = sum(smallest_class.block_densities[final_index:end])
     new_density *= smallest_growth_rate / next_growth_rate
 
     add_block!(
@@ -585,7 +590,7 @@ function timestep!(
     )
 
     n_classes::Int64 = length(functional_group.size_classes)
-    for size_idx in n_classes:-1:3
+    @inbounds for size_idx in n_classes:-1:3
         transfer_and_grow!(
             functional_group.size_classes[size_idx-1],
             functional_group.size_classes[size_idx],
@@ -595,7 +600,7 @@ function timestep!(
     end
 
     if growth_rate[1] != 0.0
-        merge_transfer!(
+        @inbounds merge_transfer!(
             functional_group.size_classes[1],
             functional_group.size_classes[2],
             growth_rate[1],
@@ -617,9 +622,9 @@ end
 
 function timestep!(
     functional_groups::Vector{FunctionalGroup},
-    recruitment::Vector{Float64},
-    growth_rate::Matrix{Float64},
-    survival_rate::Matrix{Float64}
+    recruitment::AbstractVector{Float64},
+    growth_rate::AbstractMatrix{Float64},
+    survival_rate::AbstractMatrix{Float64}
 )::Nothing
     @inbounds for r in axes(growth_rate, 1)
         timestep!(functional_groups[r], recruitment[r], @view(growth_rate[r, :]), @view(survival_rate[r, :]))
