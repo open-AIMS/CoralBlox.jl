@@ -1,5 +1,6 @@
 # CoralBlox.jl
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13251118.svg)](https://doi.org/10.5281/zenodo.13251118)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13251118.svg)](https://doi.org/10.5281/zenodo.13251118) [![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/JuliaDiff/BlueStyle)
+
 
 -----
 
@@ -19,7 +20,7 @@ same `SizeClass` and `FunctionalGroup` have the same growth rate, we can visuali
 growth as groups of corals moving on the diameter space in blocks. Further details about
 how this growth and mortality are implemented can be found below.
 
-## Quick Start
+# Quick Start
 
 This plot was generated using the following script as an example of how CoralBlox can be used:
 
@@ -157,7 +158,7 @@ Consideration of external factors that may influence coral growth and mortality
 could be included outside of each `timestep!` call, potentially informed by a broader
 ecosystem model.
 
-## Model details
+# Model details
 
 Consider the area of each colony approximated by the area of a circumference with diameter
 $x$:
@@ -195,7 +196,7 @@ $$
 
 The following sections explain in more detail how growth and mortality are represented.
 
-### How does mortality work?
+## How does mortality work?
 
 At each timestep $t$, before the growth event, we apply a survival rate to each
 `CoralBlock`. That is done by multiplying each `FunctionalGroup` and `SizeClass` survival
@@ -208,7 +209,7 @@ $$
 \end{equation}
 $$
 
-### How does growth work?
+## How does growth work?
 
 For each `FunctionalGroup`, we can think of a horizontal axis representing the diameter
 space with its `CoralBlock`s lined up. Then, a growth event is conceived as the displacement
@@ -234,7 +235,7 @@ The paper will have a section with more details about this movement in the front
 
 TODO -->
 
-### How does the linear extension scale factor work?
+## How does the linear extension scale factor work?
 
 Each coral colony has a base growth $l_{\tau\sigma}$, which is an increase in diameter.
 This is referred to as the *linear extension* and depends on the colony's `FunctionalGroup`
@@ -280,3 +281,7 @@ $$
 \omega_{\tau\sigma;t} = l_{\tau\sigma} \gamma_t
 \end{equation}
 $$
+
+# Contributing
+
+This project uses [BlueStyle](https://domluna.github.io/JuliaFormatter.jl/dev/blue_style/) style guide with some extra configuration. If you use VSCode, you don't need to install any extensions, the `.JuliaFormatter.toml` will be used automatically to format the files.
