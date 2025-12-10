@@ -106,13 +106,13 @@ function linear_extension_scale_factors(
 )::AbstractVector{Float64}
     n = size(C_cover_t, 3)
     result = Vector{Float64}(undef, n)
-    @views for i in 1:n
+    @views for i ∈ 1:n
         result[i] = linear_extension_scale_factors(
             C_cover_t[:, :, i],
             loc_habitable_areas[i],
             linear_extensions,
             bin_edges,
-            max_projected_cover[i]
+            max_projected_cover[i],
         )
     end
     return result

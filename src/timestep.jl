@@ -11,7 +11,7 @@ struct SizeClass
 
     # Caches
     buf_new::Vector{Float64}
-    movement_cache::MVector{3,Float64}
+    movement_cache::MVector{3, Float64}
 end
 
 function SizeClass(
@@ -34,7 +34,7 @@ function SizeClass(
     push!(block_densities, density)
 
     buf_new::Vector{Float64} = zeros(capacity)
-    cache::MVector{3,Float64} = @MVector zeros(3)
+    cache::MVector{3, Float64} = @MVector zeros(3)
     return SizeClass(
         lower_bound,
         upper_bound,
@@ -81,18 +81,17 @@ function FunctionalGroup(
     upper_bounds::AbstractVector{Float64},
     cover::AbstractVector{Float64},
 )::FunctionalGroup
-    num_sc = length(lower_bounds[1:end-1])
+    num_sc = length(lower_bounds[1:(end - 1)])
     size_classes::Vector{SizeClass} = Vector(undef, num_sc)
-    for i in 1:num_sc
+    for i ∈ 1:num_sc
         size_classes[i] = SizeClass(lower_bounds[i], upper_bounds[i], cover[i])
     end
 
-    terminal_class::TerminalClass = TerminalClass(lower_bounds[end], upper_bounds[end], cover[end])
-
-    return FunctionalGroup(
-        size_classes,
-        terminal_class
+    terminal_class::TerminalClass = TerminalClass(
+        lower_bounds[end], upper_bounds[end], cover[end]
     )
+
+    return FunctionalGroup(size_classes, terminal_class)
 
     return FunctionalGroup(size_classes, terminal_class)
 end
@@ -184,7 +183,7 @@ function apply_mortality!(
     functional_groups::Vector{FunctionalGroup},
     survival_rate::Union{Matrix{Float64}, SubArray{Float64, 2}},
 )::Nothing
-    @inbounds for i in axes(survival_rate, 1)
+    @inbounds for i ∈ axes(survival_rate, 1)
         survival_slice = @view survival_rate[i, :]
         fg = functional_groups[i]
         apply_mortality!(fg, survival_slice)
@@ -196,7 +195,7 @@ function apply_mortality!(
     functional_group::FunctionalGroup,
     survival_rate::Union{Vector{Float64}, SubArray{Float64, 1}},
 )::Nothing
-    for sc in 1:length(functional_group.size_classes)-1
+    for sc ∈ 1:(length(functional_group.size_classes) - 1)
         apply_mortality!(functional_group.size_classes[sc], survival_rate[sc])
     end
 
@@ -389,8 +388,8 @@ function calculate_new_block!(
             next_class.lower_bound
         else
             block_lb + crossedge_displacement(
-            block_lb, next_class.lower_bound, prev_growth_rate, next_growth_rate
-        )
+                block_lb, next_class.lower_bound, prev_growth_rate, next_growth_rate
+            )
         end
     )
 
@@ -576,7 +575,7 @@ function timestep!(
     )
 
     n_classes::Int64 = length(functional_group.size_classes)
-    @inbounds for size_idx in n_classes:-1:3
+    @inbounds for size_idx ∈ n_classes:-1:3
         transfer_and_grow!(
             functional_group.size_classes[size_idx - 1],
             functional_group.size_classes[size_idx],
@@ -610,10 +609,15 @@ function timestep!(
     functional_groups::Vector{FunctionalGroup},
     recruitment::AbstractVector{Float64},
     growth_rate::AbstractMatrix{Float64},
-    survival_rate::AbstractMatrix{Float64}
+    survival_rate::AbstractMatrix{Float64},
 )::Nothing
-    @inbounds for r in axes(growth_rate, 1)
-        timestep!(functional_groups[r], recruitment[r], @view(growth_rate[r, :]), @view(survival_rate[r, :]))
+    @inbounds for r ∈ axes(growth_rate, 1)
+        timestep!(
+            functional_groups[r],
+            recruitment[r],
+            @view(growth_rate[r, :]),
+            @view(survival_rate[r, :])
+        )
     end
 
     return nothing
