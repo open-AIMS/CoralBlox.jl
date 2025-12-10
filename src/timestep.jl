@@ -1,13 +1,15 @@
 using StaticArrays
 using DataStructures: CircularBuffer
 
-struct SizeClass
+mutable struct SizeClass
     lower_bound::Float64
     upper_bound::Float64
 
     block_lower_bounds::CircularBuffer{Float64}
     block_upper_bounds::CircularBuffer{Float64}
     block_densities::CircularBuffer{Float64}
+
+    mortality_reference::Float64
 
     # Caches
     buf_new::Vector{Float64}
@@ -41,6 +43,7 @@ function SizeClass(
         block_lower_bounds,
         block_upper_bounds,
         block_densities,
+        1.0,
         buf_new,
         cache,
     )
@@ -53,6 +56,7 @@ function Base.show(io::IO, mime::MIME"text/plain", sc::SizeClass)::Nothing
     Lower Bound: $(sc.lower_bound)
     Upper Bound: $(sc.upper_bound)
     Current buffer size: $(length(sc.buf_new))
+    Mortality Reference: $(sc.mortality_reference)
     """)
 
     return nothing
@@ -169,6 +173,16 @@ function reuse_buffers!(size_class::SizeClass, cover::Float64)::Nothing
     push!(size_class.block_upper_bounds, size_class.upper_bound)
     push!(size_class.block_densities, density)
 
+    size_class.mortality_reference = 1.0
+
+    return nothing
+end
+
+"""Apply the mortality reference to the size class block densities."""
+function realise_mortality!(size_class::SizeClass)::Nothing
+    size_class.block_densities .*= size_class.mortality_reference
+    size_class.mortality_reference = 1.0
+
     return nothing
 end
 
@@ -195,7 +209,7 @@ function apply_mortality!(
     functional_group::FunctionalGroup,
     survival_rate::Union{Vector{Float64}, SubArray{Float64, 1}},
 )::Nothing
-    for sc ∈ 1:(length(functional_group.size_classes) - 1)
+    for sc ∈ 1:length(functional_group.size_classes)
         apply_mortality!(functional_group.size_classes[sc], survival_rate[sc])
     end
 
@@ -204,7 +218,10 @@ function apply_mortality!(
     return nothing
 end
 function apply_mortality!(size_class::SizeClass, survival_rate::Float64)::Nothing
-    size_class.block_densities .*= survival_rate
+    size_class.mortality_reference *= survival_rate
+    if size_class.mortality_reference <= 0.0000005
+        realise_mortality!(size_class)
+    end
 
     return nothing
 end
@@ -261,7 +278,7 @@ function added_block_density(
 )::Float64
     block_lb::Float64 = size_class.block_lower_bounds[block_idx]
     block_ub::Float64 = size_class.block_upper_bounds[block_idx]
-    block_density::Float64 = size_class.block_densities[block_idx]
+    block_density::Float64 = size_class.block_densities[block_idx] * size_class.mortality_reference
 
     coral_count::Float64 = n_corals(
         max(block_lb + growth_rate, terminal.lower_bound),
@@ -375,6 +392,7 @@ function calculate_new_block!(
     block_lb::Float64,
     block_ub::Float64,
     block_density::Float64,
+    prev_mortality_reference::Float64,
     next_class::SizeClass,
     prev_growth_rate::Float64,
     next_growth_rate::Float64,
@@ -405,8 +423,10 @@ function calculate_new_block!(
     end
 
     # New Density = (number of corals * proportion moving)
+    block_density *= prev_mortality_reference
     n_corals_moving::Float64 = block_density * (block_ub - block_lb) * proportion_moving
     new_density::Float64 = n_corals_moving / (new_upper_bound - new_lower_bound)
+    new_density /= next_class.mortality_reference
 
     return new_lower_bound, new_upper_bound, new_density
 end
@@ -435,6 +455,7 @@ function transfer_blocks!(
             prev_class.block_lower_bounds[block_idx],
             prev_class.block_upper_bounds[block_idx],
             prev_class.block_densities[block_idx],
+            prev_class.mortality_reference,
             next_class,
             prev_growth_rate,
             next_growth_rate,
@@ -529,6 +550,7 @@ function merge_transfer!(
             smallest_class.block_lower_bounds[block_idx],
             smallest_class.block_upper_bounds[block_idx],
             smallest_class.block_densities[block_idx],
+            smallest_class.mortality_reference,
             next_class,
             smallest_growth_rate,
             next_growth_rate,
@@ -542,6 +564,8 @@ function merge_transfer!(
     # The width of new blocks is always next_growth_rate. So we need only add densities and
     # adjust for new width
     @inbounds new_density::Float64 = sum(smallest_class.block_densities[final_index:end])
+    new_density *= smallest_class.mortality_reference
+    new_density /= next_class.mortality_reference
     new_density *= smallest_growth_rate / next_growth_rate
 
     add_block!(
@@ -599,6 +623,7 @@ function timestep!(
     if recruits > 0.0
         area_factor::Float64 = average_area(functional_group.size_classes[1])
         recruits_density::Float64 = recruits / area_factor
+        recruits_density /= functional_group.size_classes[1].mortality_reference
         add_block!(functional_group.size_classes[1], recruits_density)
     end
 
@@ -653,5 +678,5 @@ function coral_cover(size_class::SizeClass)::Float64
             (size_class.block_upper_bounds[i]^3 - size_class.block_lower_bounds[i]^3)
     end
 
-    return cover
+    return cover * size_class.mortality_reference
 end
