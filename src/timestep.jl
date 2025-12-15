@@ -195,7 +195,7 @@ function apply_mortality!(
     functional_group::FunctionalGroup,
     survival_rate::Union{Vector{Float64}, SubArray{Float64, 1}},
 )::Nothing
-    for sc ∈ 1:(length(functional_group.size_classes) - 1)
+    @inbounds for sc ∈ 1:(length(functional_group.size_classes) - 1)
         apply_mortality!(functional_group.size_classes[sc], survival_rate[sc])
     end
 
@@ -541,7 +541,7 @@ function merge_transfer!(
     end
     # The width of new blocks is always next_growth_rate. So we need only add densities and
     # adjust for new width
-    @inbounds new_density::Float64 = sum(smallest_class.block_densities[final_index:end])
+    @inbounds new_density::Float64 = sum(@view(smallest_class.block_densities[final_index:end]))
     new_density *= smallest_growth_rate / next_growth_rate
 
     add_block!(
@@ -631,6 +631,9 @@ end
 function coral_cover(
     functional_group::Vector{FunctionalGroup}, C_cover::SubArray{Float64, 2}
 )::Nothing
+    # for (i, grp) in enumerate(functional_group)
+    #     coral_cover(grp, @view(C_cover[i, :]))
+    # end
     coral_cover.(functional_group, eachrow(C_cover))
 
     return nothing
