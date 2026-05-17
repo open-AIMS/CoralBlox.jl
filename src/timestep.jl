@@ -204,7 +204,9 @@ function apply_mortality!(
     return nothing
 end
 function apply_mortality!(size_class::SizeClass, survival_rate::Float64)::Nothing
-    size_class.block_densities .*= survival_rate
+    @inbounds for i ∈ eachindex(size_class.block_densities)
+        size_class.block_densities[i] *= survival_rate
+    end
 
     return nothing
 end
@@ -223,8 +225,10 @@ function _apply_internal_growth!(
 end
 function _apply_internal_growth!(size_class::SizeClass, growth_rate::Float64)::Nothing
     # Apply growth directly to underlying buffer
-    size_class.block_lower_bounds .+= growth_rate
-    size_class.block_upper_bounds .+= growth_rate
+    @inbounds for i ∈ eachindex(size_class.block_lower_bounds)
+        size_class.block_lower_bounds[i] += growth_rate
+        size_class.block_upper_bounds[i] += growth_rate
+    end
 
     # Grow upper bounds and clamp bounds by upper bound of size class
     class_upper_bound::Float64 = size_class.upper_bound
@@ -630,17 +634,17 @@ end
 function coral_cover(
     functional_group::Vector{FunctionalGroup}, C_cover::SubArray{Float64, 2}
 )::Nothing
-    # for (i, grp) in enumerate(functional_group)
-    #     coral_cover(grp, @view(C_cover[i, :]))
-    # end
-    coral_cover.(functional_group, eachrow(C_cover))
+    for (i, grp) ∈ enumerate(functional_group)
+        coral_cover(grp, @view(C_cover[i, :]))
+    end
+    # coral_cover.(functional_group, eachrow(C_cover))
 
     return nothing
 end
 function coral_cover(
     functional_group::FunctionalGroup, C_cover::SubArray{Float64, 1}
 )::Nothing
-    C_cover[1:(end - 1)] .= coral_cover.(functional_group.size_classes)
+    @. C_cover[1:(end - 1)] = coral_cover(functional_group.size_classes)
     C_cover[end] =
         functional_group.terminal_class.density *
         average_area(functional_group.terminal_class)
@@ -648,8 +652,7 @@ function coral_cover(
 end
 function coral_cover(size_class::SizeClass)::Float64
     cover::Float64 = 0.0
-    #? I think we could broadcast this operation
-    for i ∈ 1:n_blocks(size_class)
+    @inbounds for i ∈ 1:n_blocks(size_class)
         cover +=
             size_class.block_densities[i] * π / 12 *
             (size_class.block_upper_bounds[i]^3 - size_class.block_lower_bounds[i]^3)
