@@ -429,6 +429,7 @@ function transfer_blocks!(
     # Blocks that exceed this bound will move to the next size class
     # block_upper_bounds is sorted descending; binary search for the cutoff
     moving_bound::Float64 = prev_class.upper_bound - prev_growth_rate
+    # Skip blocks that are not migrating
     n_migrating::Int64 =
         searchsortedfirst(prev_class.block_upper_bounds, moving_bound; rev=true) - 1
     for block_idx ∈ 1:n_migrating
