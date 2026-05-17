@@ -15,7 +15,7 @@ struct SizeClass
 end
 
 function SizeClass(
-    lower_bound::Float64, upper_bound::Float64, cover::Float64; capacity::Int64=256
+    lower_bound::Float64, upper_bound::Float64, cover::Float64; capacity::Int64=16
 )::SizeClass
     area_factor::Float64 = π / 12 * (upper_bound^3 - lower_bound^3)
     density::Float64 = cover / area_factor
@@ -81,7 +81,7 @@ function FunctionalGroup(
     upper_bounds::AbstractVector{Float64},
     cover::AbstractVector{Float64},
 )::FunctionalGroup
-    num_sc = length(lower_bounds[1:(end - 1)])
+    num_sc = length(lower_bounds) - 1
     size_classes::Vector{SizeClass} = Vector(undef, num_sc)
     for i ∈ 1:num_sc
         size_classes[i] = SizeClass(lower_bounds[i], upper_bounds[i], cover[i])
@@ -90,8 +90,6 @@ function FunctionalGroup(
     terminal_class::TerminalClass = TerminalClass(
         lower_bounds[end], upper_bounds[end], cover[end]
     )
-
-    return FunctionalGroup(size_classes, terminal_class)
 
     return FunctionalGroup(size_classes, terminal_class)
 end
@@ -544,7 +542,9 @@ function merge_transfer!(
     end
     # The width of new blocks is always next_growth_rate. So we need only add densities and
     # adjust for new width
-    @inbounds new_density::Float64 = sum(@view(smallest_class.block_densities[final_index:end]))
+    @inbounds new_density::Float64 = sum(
+        @view(smallest_class.block_densities[final_index:end])
+    )
     new_density *= smallest_growth_rate / next_growth_rate
 
     add_block!(
