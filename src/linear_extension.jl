@@ -35,7 +35,77 @@ function _diameter_coef(
 end
 
 """
-    adjusted_linear_extension(C_cover_t::AbstractArray{Float64,3}, loc_habitable_areas::AbstractVector{Float64}, linear_extensions::AbstractMatrix{Float64}, bin_edges::AbstractMatrix{Float64}, max_projected_cover::AbstractVector{Float64})
+    LinearExtensionCache(bin_edges)
+
+Pre-computed Δd matrices derived from `bin_edges`. Construct once per domain/scenario
+and pass to `linear_extension_scale_factors` to avoid recomputing these constant matrices
+on every timestep.
+"""
+struct LinearExtensionCache
+    Δ¹d::Matrix{Float64}
+    Δ²d::Matrix{Float64}
+    Δ³d::Matrix{Float64}
+end
+function LinearExtensionCache(bin_edges::AbstractMatrix{Float64})
+    tgt = @view bin_edges[:, 1:(end - 1)]
+    return LinearExtensionCache(Δd(tgt, 1), Δd(tgt, 2), Δd(tgt, 3))
+end
+
+# Private: computation with pre-computed Δd matrices and target_linear_extensions view.
+# All public overloads delegate here after computing Δd once.
+#
+# density_i = (12/π) * C_i / Δ³_i is substituted into all coefficient expressions:
+#   projected_cover = Σ C*(3*le²*Δ1/Δ3 + 3*le*Δ2/Δ3 + 1)
+#   a = (36/π) * Σ C*le²*Δ1/Δ3
+#   b = (36/π) * Σ C*le*Δ2/Δ3
+#   c = (12/π) * (total_cover - adjusted_projected_cover)
+# All three accumulators are computed in a single pass to avoid any intermediate allocations.
+function _linear_extension_scale_factors_core(
+    C_cover_t::AbstractMatrix{Float64},
+    habitable_area::Float64,
+    target_linear_extensions::AbstractMatrix{Float64},
+    max_projected_cover::Float64,
+    Δ¹d::AbstractMatrix{Float64},
+    Δ²d::AbstractMatrix{Float64},
+    Δ³d::AbstractMatrix{Float64},
+)::Float64
+    target_C_cover_t = @view C_cover_t[:, 1:(end - 1)]
+    total_cover::Float64 = sum(target_C_cover_t)
+    non_target_total_cover = sum(C_cover_t[:, end])
+
+    projected_cover::Float64 = 0.0
+    a_acc::Float64 = 0.0
+    b_acc::Float64 = 0.0
+    @inbounds for j ∈ axes(target_C_cover_t, 2), i ∈ axes(target_C_cover_t, 1)
+        c_ij = target_C_cover_t[i, j]
+        le = target_linear_extensions[i, j]
+        Δ1 = Δ¹d[i, j]
+        Δ2 = Δ²d[i, j]
+        Δ3 = Δ³d[i, j]
+        c_over_Δ3 = c_ij / Δ3
+        projected_cover += c_ij + c_over_Δ3 * (3 * le^2 * Δ1 + 3 * le * Δ2)
+        a_acc += c_over_Δ3 * le^2 * Δ1
+        b_acc += c_over_Δ3 * le * Δ2
+    end
+
+    a::Float64 = (36 / π) * a_acc
+    b::Float64 = (36 / π) * b_acc
+
+    adjusted_projected_cover::Float64 = _adjusted_projected_cover(
+        total_cover,
+        projected_cover,
+        max_projected_cover - non_target_total_cover,
+        habitable_area - non_target_total_cover,
+    )
+
+    c::Float64 = (12 / π) * (total_cover - adjusted_projected_cover)
+
+    return (sqrt((b^2) - (4 * a * c)) - b) / (2 * a)
+end
+
+# Public scalar: computes Δd once then delegates to core.
+"""
+    linear_extension_scale_factors(C_cover_t::AbstractArray{Float64,3}, loc_habitable_areas::AbstractVector{Float64}, linear_extensions::AbstractMatrix{Float64}, bin_edges::AbstractMatrix{Float64}, max_projected_cover::AbstractVector{Float64})
 
 Adjusted linear extension. It assumes the last functional group doesn't grow. Therefore,
 the last size class of each functional group are excluded from this calculation to prevent a
@@ -58,45 +128,22 @@ function linear_extension_scale_factors(
     bin_edges::AbstractMatrix{Float64},
     max_projected_cover::Float64,
 )::Float64
-    # Target here refers to all size classes except the last one of each functional group
-    # since these don't grow
-    target_linear_extensions = @view linear_extensions[:, 1:(end - 1)]
     target_bin_edges = @view bin_edges[:, 1:(end - 1)]
-    target_C_cover_t = @view C_cover_t[:, 1:(end - 1)]
-
-    total_cover::Float64 = sum(target_C_cover_t)
-    non_target_total_cover = sum(C_cover_t[:, end])
-
-    # Average density for each functional group and size class
-    size_class_densities::Matrix{Float64} = _size_class_densities(
-        target_C_cover_t, target_bin_edges
+    Δ¹d = Δd(target_bin_edges, 1)
+    Δ²d = Δd(target_bin_edges, 2)
+    Δ³d = Δd(target_bin_edges, 3)
+    return _linear_extension_scale_factors_core(
+        C_cover_t,
+        habitable_area,
+        @view(linear_extensions[:, 1:(end - 1)]),
+        max_projected_cover,
+        Δ¹d,
+        Δ²d,
+        Δ³d,
     )
-
-    # Projected coral cover at t+1
-    projected_cover::Float64 = _projected_cover(
-        size_class_densities, target_linear_extensions, target_bin_edges
-    )
-
-    adjusted_projected_cover::Float64 = _adjusted_projected_cover(
-        total_cover,
-        projected_cover,
-        max_projected_cover - non_target_total_cover,
-        habitable_area - non_target_total_cover,
-    )
-
-    # Solve quadratic equation
-    a::Float64 = _quadratic_coeff(
-        size_class_densities, target_linear_extensions, Δd(target_bin_edges, 1)
-    )
-    b::Float64 = _linear_coeff(
-        size_class_densities, target_linear_extensions, Δd(target_bin_edges, 2)
-    )
-    c::Float64 = _constant_coeff(
-        size_class_densities, adjusted_projected_cover, Δd(target_bin_edges, 3)
-    )
-
-    return (sqrt((b^2) - (4 * a * c)) - (b)) / (2 * a)
 end
+
+# Public vector: computes Δd once for the whole batch, then calls core per location.
 function linear_extension_scale_factors(
     C_cover_t::AbstractArray{Float64, 3},
     loc_habitable_areas::AbstractVector{Float64},
@@ -104,22 +151,43 @@ function linear_extension_scale_factors(
     bin_edges::AbstractMatrix{Float64},
     max_projected_cover::AbstractVector{Float64},
 )::AbstractVector{Float64}
+    return linear_extension_scale_factors(
+        C_cover_t,
+        loc_habitable_areas,
+        linear_extensions,
+        LinearExtensionCache(bin_edges),
+        max_projected_cover,
+    )
+end
+
+# Public vector with a LinearExtensionCache — for callers that pre-compute the cache
+# once before a timestep loop to avoid recomputing constant Δd matrices each call.
+function linear_extension_scale_factors(
+    C_cover_t::AbstractArray{Float64, 3},
+    loc_habitable_areas::AbstractVector{Float64},
+    linear_extensions::AbstractMatrix{Float64},
+    cache::LinearExtensionCache,
+    max_projected_cover::AbstractVector{Float64},
+)::AbstractVector{Float64}
     n = size(C_cover_t, 3)
     result = Vector{Float64}(undef, n)
+    target_lin_ext = @view linear_extensions[:, 1:(end - 1)]
     @views for i ∈ 1:n
-        result[i] = linear_extension_scale_factors(
+        result[i] = _linear_extension_scale_factors_core(
             C_cover_t[:, :, i],
             loc_habitable_areas[i],
-            linear_extensions,
-            bin_edges,
+            target_lin_ext,
             max_projected_cover[i],
+            cache.Δ¹d,
+            cache.Δ²d,
+            cache.Δ³d,
         )
     end
     return result
 end
 
-Δd(bin_edges::AbstractMatrix{Float64}, n::Int64)::Matrix{Float64} =
-    ((bin_edges[:, 2:end] .^ n) .- (bin_edges[:, 1:(end - 1)] .^ n))
+@inline @views Δd(bin_edges::AbstractMatrix{Float64}, n::Int64)::Matrix{Float64} =
+    @. ((bin_edges[:, 2:end]^n) - (bin_edges[:, 1:(end - 1)]^n))
 
 _size_class_densities(
     C_cover_t::AbstractMatrix{Float64}, bin_edges::AbstractMatrix{Float64}
