@@ -107,8 +107,8 @@ end
 """
     linear_extension_scale_factors(C_cover_t::AbstractArray{Float64,3}, loc_habitable_areas::AbstractVector{Float64}, linear_extensions::AbstractMatrix{Float64}, bin_edges::AbstractMatrix{Float64}, max_projected_cover::AbstractVector{Float64})
 
-Adjusted linear extension. It assumes the last functional group doesn't grow. Therefore,
-the last size class of each functional group are excluded from this calculation to prevent a
+Adjusted linear extension. It assumes the last size class of each functional group doesn't
+grow, so those size classes are excluded from this calculation to prevent a
 rounding error that sometimes occurs when almost all of the cover is concentrated in the
 last size class of some functional groups and the growth (correspondent to the remaining
 size classes) is marginal and, because of rounding, sometimes makes the projected_cover be
