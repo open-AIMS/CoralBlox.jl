@@ -10,9 +10,7 @@ using CoralBlox:
 Mock bin edges in m.
 """
 function _mock_bin_edges(n_bins::Int64, n_functional_groups::Int64)::Matrix{Float64}
-    return reshape(
-        repeat(range(0, 1, n_bins), n_functional_groups), n_functional_groups, n_bins
-    )
+    return repeat(collect(range(0, 1, n_bins))', n_functional_groups, 1)
 end
 
 """
