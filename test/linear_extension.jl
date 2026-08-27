@@ -10,9 +10,7 @@ using CoralBlox:
 Mock bin edges in m.
 """
 function _mock_bin_edges(n_bins::Int64, n_functional_groups::Int64)::Matrix{Float64}
-    return reshape(
-        repeat(range(0, 1, n_bins), n_functional_groups), n_functional_groups, n_bins
-    )
+    return repeat(collect(range(0, 1, n_bins))', n_functional_groups, 1)
 end
 
 """
@@ -95,5 +93,21 @@ end
         # Scale factors should be <= 1 and Scale factors should be >= 0
         @test sum(scale_factors .>= 1) == 0
         @test sum(scale_factors .<= 0) == 0
+    end
+
+    @testset "linear_extension_scale_factors — fully matured population (a == 0)" begin
+        # All cover concentrated in the terminal size class (excluded from the target/growing
+        # size classes), so every target block is empty and the quadratic solve's `a`
+        # coefficient is exactly 0. This previously produced a NaN (0/0) or Inf scale factor.
+        matured_cover = zeros(n_functional_groups, n_size_classes, n_locs)
+        matured_cover[:, end, :] .= _habitable_areas[:, end, :]
+        habitable_area = dropdims(sum(_habitable_areas; dims=(1, 2)); dims=(1, 2))
+
+        scale_factors = CoralBlox.linear_extension_scale_factors(
+            matured_cover, habitable_area, _linear_extensions, _bin_edges, max_proj_cover
+        )
+
+        @test all(isfinite, scale_factors)
+        @test all(==(0.0), scale_factors)
     end
 end

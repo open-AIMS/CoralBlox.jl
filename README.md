@@ -1,5 +1,5 @@
 # CoralBlox.jl
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13251118.svg)](https://doi.org/10.5281/zenodo.13251118) [![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/JuliaDiff/BlueStyle)
+[![DOI](https://img.shields.io/badge/DOI-10.25845%2F7GZ3--C373-blue.svg)](https://doi.org/10.25845/7GZ3-C373) [![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/JuliaDiff/BlueStyle)
 
 
 -----
@@ -333,8 +333,8 @@ application:
 > computationally efficient coral model for decision support. *bioRxiv*.
 > [https://www.biorxiv.org/content/10.64898/2026.04.13.718315v1](https://www.biorxiv.org/content/10.64898/2026.04.13.718315v1)
 
-To cite this specific version of the software itself, use the Zenodo DOI in the badge at the top
-of this page: [10.5281/zenodo.13251118](https://doi.org/10.5281/zenodo.13251118).
+To cite the software itself, use the DOI in the badge at the top of this page:
+[10.25845/7GZ3-C373](https://doi.org/10.25845/7GZ3-C373).
 
 # Contributing
 
