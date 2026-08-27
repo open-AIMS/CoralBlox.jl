@@ -1,0 +1,5 @@
+[deps]
+CoralBlox = "f00a6e10-004a-11ef-3676-67ec635bc1a2"
+EasyConfig = "acab07b0-f158-46d4-8913-50acef6d41fe"
+PlotlyKaleido = "f2990250-8cf9-495f-b13a-cce12b45703c"
+PlotlyLight = "ca7969ec-10b3-423e-8d99-40f33abb42bf"
