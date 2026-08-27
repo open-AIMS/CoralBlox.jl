@@ -38,8 +38,8 @@ end
     LinearExtensionCache(bin_edges)
 
 Pre-computed Δd matrices derived from `bin_edges`. Construct once per domain/scenario
-and pass to `linear_extension_scale_factors` to avoid recomputing these constant matrices
-on every timestep.
+and pass to `linear_extension_scale_factors` (the spatial competition factor) to avoid
+recomputing these constant matrices on every timestep.
 """
 struct LinearExtensionCache
     Δ¹d::Matrix{Float64}
@@ -53,6 +53,10 @@ end
 
 # Private: computation with pre-computed Δd matrices and target_linear_extensions view.
 # All public overloads delegate here after computing Δd once.
+#
+# This computes the spatial competition factor: the growth penalty applied uniformly to
+# all linear extensions to account for corals competing for a shared, limited habitable
+# area (see the "How does the linear extension scale factor work?" section of the README).
 #
 # density_i = (12/π) * C_i / Δ³_i is substituted into all coefficient expressions:
 #   projected_cover = Σ C*(3*le²*Δ1/Δ3 + 3*le*Δ2/Δ3 + 1)
@@ -107,7 +111,10 @@ end
 """
     linear_extension_scale_factors(C_cover_t::AbstractArray{Float64,3}, loc_habitable_areas::AbstractVector{Float64}, linear_extensions::AbstractMatrix{Float64}, bin_edges::AbstractMatrix{Float64}, max_projected_cover::AbstractVector{Float64})
 
-Adjusted linear extension. It assumes the last size class of each functional group doesn't
+Computes the spatial competition factor: a growth penalty, uniform across `FunctionalGroup`s
+and `SizeClass`es, that captures how growth slows down purely because corals are competing
+for a shared, limited habitable area. Multiplying `linear_extensions` by this factor gives
+the adjusted linear extension. It assumes the last size class of each functional group doesn't
 grow, so those size classes are excluded from this calculation to prevent a
 rounding error that sometimes occurs when almost all of the cover is concentrated in the
 last size class of some functional groups and the growth (correspondent to the remaining
