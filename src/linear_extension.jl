@@ -104,6 +104,17 @@ function _linear_extension_scale_factors_core(
 
     c::Float64 = (12 / π) * (total_cover - adjusted_projected_cover)
 
+    # a == 0 whenever every target size class is empty (all cover concentrated in the
+    # terminal, non-growing size class) — a fully "matured" population is a realistic
+    # outcome after enough growth. The quadratic then degenerates to the linear equation
+    # b*γ + c = 0, which the general formula (dividing by 2a) cannot handle: it produces
+    # 0/0 = NaN when b >= 0, or a finite/0 = Inf otherwise.
+    if a == 0.0
+        # b == 0 too means there is no target cover to apply any scale factor to (c_ij is 0
+        # for every target block), so the scale factor is moot; 0.0 is a safe no-op.
+        return b == 0.0 ? 0.0 : -c / b
+    end
+
     return (sqrt((b^2) - (4 * a * c)) - b) / (2 * a)
 end
 
