@@ -1,6 +1,7 @@
 using Test
 using CoralBlox:
     SizeClass,
+    TerminalClass,
     crossedge_displacement,
     calculate_new_block!,
     remove_outgrown!,
@@ -400,4 +401,34 @@ end
         larger_class.block_upper_bounds[2] == 8.0 &&
         larger_class.block_densities[2] == 3 * smallest_class.block_densities[1] / 2
     ) || "Incorrect block addition in merge transfer."
+end
+
+@testset "transfer_blocks! (terminal)" begin
+    # prev.upper_bound - growth_rate = 4.0: only blocks with ub > 4.0 migrate.
+    # block A (ub 5.0) and B (ub 4.5) migrate; block C (ub 3.0) stays.
+    prev::SizeClass = SizeClass(2.0, 5.0, 10.0)
+    empty_buffers!(prev)
+    add_block!(prev, 4.5, 5.0, 2.0)
+    add_block!(prev, 3.8, 4.5, 3.0)
+    add_block!(prev, 1.0, 3.0, 5.0)
+
+    terminal::TerminalClass = TerminalClass(5.0, 10.0, 0.0)
+    transfer_blocks!(prev, terminal, 1.0)
+
+    # A: 2.0 * ((5.0+1.0) - max(4.5+1.0, 5.0)) / (10.0-5.0) = 2.0 * 0.5 / 5.0 = 0.2
+    # B: 3.0 * ((4.5+1.0) - max(3.8+1.0, 5.0)) / (10.0-5.0) = 3.0 * 0.5 / 5.0 = 0.3
+    @test terminal.density ≈ 0.5 || "Only blocks above the moving bound should migrate"
+
+    # All blocks migrate when the growth rate clears every upper bound
+    terminal_all::TerminalClass = TerminalClass(5.0, 10.0, 0.0)
+    transfer_blocks!(prev, terminal_all, 3.0)
+    expected_all::Float64 = sum(
+        CoralBlox.added_block_density(prev, terminal_all, i, 3.0) for i in 1:3
+    )
+    @test terminal_all.density ≈ expected_all || "All blocks should migrate"
+
+    # No blocks migrate when growth rate is zero (moving bound == upper_bound)
+    terminal_none::TerminalClass = TerminalClass(5.0, 10.0, 0.0)
+    transfer_blocks!(prev, terminal_none, 0.0)
+    @test terminal_none.density == 0.0 || "No blocks should migrate"
 end

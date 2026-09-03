@@ -1,11 +1,10 @@
 name = "CoralBlox"
 uuid = "f00a6e10-004a-11ef-3676-67ec635bc1a2"
 authors = ["Pedro Ribeiro de Almeida", "Daniel Tan", "Takuya Iwanaga"]
-version = "1.1.11"
+version = "1.2.0"
 
 [deps]
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [weakdeps]
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
@@ -15,7 +14,6 @@ CoralBloxPlotExt = "Makie"
 
 [compat]
 DataStructures = "0.18.20"
-StaticArrays = "1.9.15"
 julia = "1"
 
 [extras]

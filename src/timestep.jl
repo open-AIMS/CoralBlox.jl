@@ -1,4 +1,3 @@
-using StaticArrays
 using DataStructures: CircularBuffer
 
 struct SizeClass
@@ -11,7 +10,6 @@ struct SizeClass
 
     # Caches
     buf_new::Vector{Float64}
-    movement_cache::MVector{3, Float64}
 end
 
 function SizeClass(
@@ -34,7 +32,6 @@ function SizeClass(
     push!(block_densities, density)
 
     buf_new::Vector{Float64} = zeros(capacity)
-    cache::MVector{3, Float64} = @MVector zeros(3)
     return SizeClass(
         lower_bound,
         upper_bound,
@@ -42,7 +39,6 @@ function SizeClass(
         block_upper_bounds,
         block_densities,
         buf_new,
-        cache,
     )
 end
 
@@ -321,25 +317,6 @@ end
 Add new cover block to the given size class. Resize the size class if the buffer is already
 full.
 """
-function add_block!(size_class::SizeClass, block_attrs::SubArray{Float64, 1})
-    # Reallocate excess memory if buffers are full
-    if size_class.block_densities.capacity == size_class.block_densities.length
-        new_current_capacity::Int64 = size_class.block_densities.capacity + 32
-        if length(size_class.buf_new) != new_current_capacity
-            resize!(size_class.buf_new, new_current_capacity)
-        end
-
-        reallocate!(size_class.block_lower_bounds, size_class.buf_new)
-        reallocate!(size_class.block_upper_bounds, size_class.buf_new)
-        reallocate!(size_class.block_densities, size_class.buf_new)
-    end
-
-    push!(size_class.block_lower_bounds, block_attrs[1])
-    push!(size_class.block_upper_bounds, block_attrs[2])
-    push!(size_class.block_densities, block_attrs[3])
-
-    return nothing
-end
 function add_block!(size_class::SizeClass, density::Float64)::Nothing
     add_block!(size_class, size_class.lower_bound, size_class.upper_bound, density)
 
@@ -432,8 +409,8 @@ function transfer_blocks!(
     # Skip blocks that are not migrating
     n_migrating::Int64 =
         searchsortedfirst(prev_class.block_upper_bounds, moving_bound; rev=true) - 1
-    for block_idx ∈ 1:n_migrating
-        prev_class.movement_cache .= calculate_new_block!(
+    @inbounds for block_idx ∈ 1:n_migrating
+        new_lower_bound, new_upper_bound, new_density = calculate_new_block!(
             prev_class.block_lower_bounds[block_idx],
             prev_class.block_upper_bounds[block_idx],
             prev_class.block_densities[block_idx],
@@ -441,7 +418,7 @@ function transfer_blocks!(
             prev_growth_rate,
             next_growth_rate,
         )
-        add_block!(next_class, @view(prev_class.movement_cache[1:3]))
+        add_block!(next_class, new_lower_bound, new_upper_bound, new_density)
     end
 
     return nothing
@@ -449,16 +426,15 @@ end
 function transfer_blocks!(
     prev_class::SizeClass, terminal::TerminalClass, growth_rate::Float64
 )::Nothing
-    # Blocks that exceed this bound will move to the next size class
+    # Blocks that exceed this bound will move to the terminal class
+    # block_upper_bounds is sorted descending; binary search for the cutoff
     moving_bound::Float64 = prev_class.upper_bound - growth_rate
+    n_migrating::Int64 =
+        searchsortedfirst(prev_class.block_upper_bounds, moving_bound; rev=true) - 1
 
     # Accumulate density to add to terminal class
     additional_density::Float64 = 0.0
-    for block_idx ∈ 1:n_blocks(prev_class)
-        # Skip blocks that are not migrating
-        if prev_class.block_upper_bounds[block_idx] <= moving_bound
-            continue
-        end
+    @inbounds for block_idx ∈ 1:n_migrating
         additional_density += added_block_density(
             prev_class, terminal, block_idx, growth_rate
         )
@@ -527,7 +503,7 @@ function merge_transfer!(
             early_exit = true
             break
         end
-        smallest_class.movement_cache .= calculate_new_block!(
+        moved_lower_bound, moved_upper_bound, moved_density = calculate_new_block!(
             smallest_class.block_lower_bounds[block_idx],
             smallest_class.block_upper_bounds[block_idx],
             smallest_class.block_densities[block_idx],
@@ -535,7 +511,7 @@ function merge_transfer!(
             smallest_growth_rate,
             next_growth_rate,
         )
-        add_block!(next_class, @view(smallest_class.movement_cache[1:3]))
+        add_block!(next_class, moved_lower_bound, moved_upper_bound, moved_density)
     end
 
     if !early_exit
