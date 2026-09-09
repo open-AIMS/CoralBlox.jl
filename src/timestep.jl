@@ -404,11 +404,9 @@ function transfer_blocks!(
 )::Nothing
 
     # Blocks that exceed this bound will move to the next size class
-    # block_upper_bounds is sorted descending; binary search for the cutoff
     moving_bound::Float64 = prev_class.upper_bound - prev_growth_rate
-    # Skip blocks that are not migrating
-    n_migrating::Int64 =
-        searchsortedfirst(prev_class.block_upper_bounds, moving_bound; rev=true) - 1
+    # Skip blocks that are not migrating (block_upper_bounds is sorted descending)
+    n_migrating::Int64 = _n_migrating(prev_class.block_upper_bounds, moving_bound)
     @inbounds for block_idx ∈ 1:n_migrating
         new_lower_bound, new_upper_bound, new_density = calculate_new_block!(
             prev_class.block_lower_bounds[block_idx],
@@ -427,10 +425,9 @@ function transfer_blocks!(
     prev_class::SizeClass, terminal::TerminalClass, growth_rate::Float64
 )::Nothing
     # Blocks that exceed this bound will move to the terminal class
-    # block_upper_bounds is sorted descending; binary search for the cutoff
     moving_bound::Float64 = prev_class.upper_bound - growth_rate
-    n_migrating::Int64 =
-        searchsortedfirst(prev_class.block_upper_bounds, moving_bound; rev=true) - 1
+    # (block_upper_bounds is sorted descending)
+    n_migrating::Int64 = _n_migrating(prev_class.block_upper_bounds, moving_bound)
 
     # Accumulate density to add to terminal class
     additional_density::Float64 = 0.0
