@@ -1,4 +1,5 @@
 using Test
+using DataStructures: CircularBuffer
 using CoralBlox:
     SizeClass,
     TerminalClass,
@@ -8,7 +9,8 @@ using CoralBlox:
     _apply_internal_growth!,
     transfer_blocks!,
     merge_transfer!,
-    add_block!
+    add_block!,
+    _n_migrating
 
 @testset "crossedge_displacement" begin
     adj_growth::Float64 = 0.0
@@ -401,6 +403,42 @@ end
         larger_class.block_upper_bounds[2] == 8.0 &&
         larger_class.block_densities[2] == 3 * smallest_class.block_densities[1] / 2
     ) || "Incorrect block addition in merge transfer."
+end
+
+"""Build a descending-sorted CircularBuffer whose `first` pointer is rotated by `rotate`."""
+function rotated_sorted_cb(vals::Vector{Float64}, capacity::Int, rotate::Int)::CircularBuffer{Float64}
+    cb = CircularBuffer{Float64}(capacity)
+    for _ ∈ 1:rotate
+        push!(cb, 0.0)
+        popfirst!(cb)
+    end
+    for v ∈ vals
+        push!(cb, v)
+    end
+    return cb
+end
+
+@testset "_n_migrating matches searchsortedfirst" begin
+    reference(cb, mb) = searchsortedfirst(cb, mb; rev=true) - 1
+
+    wrapped_seen = 0
+    for _ ∈ 1:3000
+        capacity = rand(4:40)
+        n = rand(0:capacity)
+        vals = sort(round.(rand(n) .* 10; digits=1); rev=true)  # duplicates on purpose
+        rotate = rand(0:(capacity + 5))
+        cb = rotated_sorted_cb(vals, capacity, rotate)
+        wrapped_seen += (cb.first + length(cb) - 1 > cb.capacity)
+
+        probes = Float64[-1.0, 11.0, 0.0, -0.0]
+        append!(probes, vals)                       # exact hits
+        append!(probes, vals .+ 1e-12)              # near-ties
+        append!(probes, round.(rand(6) .* 12 .- 1; digits=1))
+        for mb ∈ probes
+            @test _n_migrating(cb, mb) == reference(cb, mb)
+        end
+    end
+    @test wrapped_seen > 100 || "Test data should exercise the wrap-around case"
 end
 
 @testset "transfer_blocks! (terminal)" begin
